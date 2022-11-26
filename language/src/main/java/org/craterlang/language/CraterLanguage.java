@@ -88,23 +88,23 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
     // FIXME: replace this with the actual string metatable
     private final Object defaultStringMetatable = CraterNil.getInstance();
 
-    private final Assumption atMostOneContext = Truffle.getRuntime().createAssumption();
+    private final Assumption singleContextAssumption = Truffle.getRuntime().createAssumption();
 
     private final Shape rootTableShape = Shape.newBuilder()
         .propertyAssumptions(true)
-        .singleContextAssumption(atMostOneContext)
+        .singleContextAssumption(singleContextAssumption)
         .layout(CraterTable.class)
         .build();
 
     private final Shape rootClosureShape = Shape.newBuilder()
         .propertyAssumptions(true)
-        .singleContextAssumption(atMostOneContext)
+        .singleContextAssumption(singleContextAssumption)
         .layout(CraterClosure.class)
         .build();
 
     private final Shape rootContinuationFrameShape = Shape.newBuilder()
         .propertyAssumptions(true)
-        .singleContextAssumption(atMostOneContext)
+        .singleContextAssumption(singleContextAssumption)
         .layout(CraterContinuationFrame.class)
         .build();
 
@@ -117,7 +117,7 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
     @Override protected void initializeMultipleContexts() {
         isMultiContext = true;
         threadLocalInternedStringTables = ThreadLocal.withInitial(CraterInternedStringTable::new);
-        atMostOneContext.invalidate(); // FIXME: invalidate this only when the second context is created?
+        singleContextAssumption.invalidate(); // FIXME: invalidate this only when the second context is created?
     }
 
     @Override protected Context createContext(Env env) {
@@ -130,6 +130,10 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
 
     public static CraterLanguage get(Node node) {
         return REFERENCE.get(node);
+    }
+
+    public boolean isSingleContext() {
+        return !isMultiContext;
     }
 
     public boolean isMultiContext() {

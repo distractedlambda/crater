@@ -9,7 +9,7 @@ import static com.oracle.truffle.api.ExactMath.multiplyHighUnsigned;
  * Implementation adapted from <a href="https://github.com/tkaitchuck/aHash">aHash</a>'s fallback algorithm (as of
  * v0.8.2).
  */
-public class CraterHashing {
+public final class CraterHashing {
     private CraterHashing() {}
 
     public static int hash(byte[] data) {
