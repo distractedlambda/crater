@@ -1,0 +1,3 @@
+rootProject.name = 'crater'
+include "language"
+include "launcher"

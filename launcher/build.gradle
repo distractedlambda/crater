@@ -1,0 +1,20 @@
+plugins {
+    id "application"
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compileOnly "org.graalvm.sdk:graal-sdk:22.3.0"
+}
+
+application {
+    mainClassName 'org.craterlang.launcher.CraterLauncher'
+}
+
+run {
+    dependsOn project(':language').jar
+    systemProperties 'truffle.class.path.append': project(':language').jar.archiveFile.get()
+}
