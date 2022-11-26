@@ -1,16 +1,14 @@
 package org.craterlang.language.runtime;
 
 import com.oracle.truffle.api.CallTarget;
+import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.dsl.Cached;
-import com.oracle.truffle.api.dsl.Cached.Shared;
 import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.ImportStatic;
-import com.oracle.truffle.api.dsl.ReportPolymorphism;
 import com.oracle.truffle.api.dsl.ReportPolymorphism.Megamorphic;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.interop.TruffleObject;
 import com.oracle.truffle.api.library.CachedLibrary;
-import com.oracle.truffle.api.nodes.UnexpectedResultException;
 import com.oracle.truffle.api.object.DynamicObject;
 import com.oracle.truffle.api.object.DynamicObjectLibrary;
 import com.oracle.truffle.api.object.HiddenKey;
@@ -18,7 +16,6 @@ import com.oracle.truffle.api.object.Shape;
 import com.oracle.truffle.api.profiles.ConditionProfile;
 import org.craterlang.language.CraterNode;
 import org.craterlang.language.CraterTypeSystem;
-import org.craterlang.language.CraterTypeSystemGen;
 
 import static com.oracle.truffle.api.CompilerDirectives.castExact;
 import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
@@ -81,10 +78,10 @@ public final class CraterClosure extends DynamicObject implements TruffleObject 
     public static abstract class GetMetatableNode extends CraterNode {
         public abstract Object execute(CraterClosure closure);
 
-        @Specialization
+        @Specialization(limit = "3")
         protected Object doExecute(
             CraterClosure closure,
-            @CachedLibrary(limit = "3") DynamicObjectLibrary dynamicObjects
+            @CachedLibrary("closure") DynamicObjectLibrary dynamicObjects
         ) {
             return dynamicObjects.getOrDefault(closure, METATABLE_KEY, CraterNil.getInstance());
         }
@@ -94,12 +91,28 @@ public final class CraterClosure extends DynamicObject implements TruffleObject 
     public static abstract class SetMetatableNode extends CraterNode {
         public abstract void execute(CraterClosure closure, Object metatable);
 
-        @Specialization
-        protected void doExecute(
+        @Specialization(limit = "3")
+        protected void doCached(
             CraterClosure closure,
             Object metatable,
-            @CachedLibrary(limit = "3") DynamicObjectLibrary dynamicObjects,
+            @CachedLibrary("closure") DynamicObjectLibrary dynamicObjects,
             @Cached("createCountingProfile()") ConditionProfile nilProfile
+        ) {
+            impl(closure, metatable, dynamicObjects, nilProfile);
+        }
+
+        @Megamorphic
+        @TruffleBoundary
+        @Specialization(replaces = "doCached")
+        protected void doUncached(CraterClosure closure, Object metatable) {
+            impl(closure, metatable, DynamicObjectLibrary.getUncached(), ConditionProfile.getUncached());
+        }
+
+        private void impl(
+            CraterClosure closure,
+            Object metatable,
+            DynamicObjectLibrary dynamicObjects,
+            ConditionProfile nilProfile
         ) {
             if (nilProfile.profile(isNil(metatable))) {
                 dynamicObjects.putIfPresent(closure, METATABLE_KEY, asNil(metatable));
@@ -114,7 +127,6 @@ public final class CraterClosure extends DynamicObject implements TruffleObject 
         }
     }
 
-    @ReportPolymorphism.Exclude
     public static abstract class GetCaptureNode extends CraterNode {
         protected final int index;
 
@@ -123,15 +135,7 @@ public final class CraterClosure extends DynamicObject implements TruffleObject 
             this.index = index;
         }
 
-        public boolean executeBoolean(CraterClosure closure) throws UnexpectedResultException {
-            return CraterTypeSystemGen.expectBoolean(executeGeneric(closure));
-        }
-
-        public abstract long executeLong(CraterClosure closure) throws UnexpectedResultException;
-
-        public abstract double executeDouble(CraterClosure closure) throws UnexpectedResultException;
-
-        public abstract Object executeGeneric(CraterClosure closure);
+        public abstract Object execute(CraterClosure closure);
     }
 
     public static abstract class GetImmediateCaptureNode extends GetCaptureNode {
@@ -139,26 +143,10 @@ public final class CraterClosure extends DynamicObject implements TruffleObject 
             super(index);
         }
 
-        @Specialization(rewriteOn = UnexpectedResultException.class)
-        protected long doLong(
+        @Specialization(limit = "3")
+        protected Object doExecute(
             CraterClosure closure,
-            @CachedLibrary(limit = "3") @Shared("dynamicObjects") DynamicObjectLibrary dynamicObjects
-        ) throws UnexpectedResultException {
-            return dynamicObjects.getLongOrDefault(closure, index, CraterNil.getInstance());
-        }
-
-        @Specialization(rewriteOn = UnexpectedResultException.class)
-        protected double doDouble(
-            CraterClosure closure,
-            @CachedLibrary(limit = "3") @Shared("dynamicObjects") DynamicObjectLibrary dynamicObjects
-        ) throws UnexpectedResultException {
-            return dynamicObjects.getDoubleOrDefault(closure, index, CraterNil.getInstance());
-        }
-
-        @Specialization(replaces = {"doLong", "doDouble"})
-        protected Object doGeneric(
-            CraterClosure closure,
-            @CachedLibrary(limit = "3") @Shared("dynamicObjects") DynamicObjectLibrary dynamicObjects
+            @CachedLibrary("closure") DynamicObjectLibrary dynamicObjects
         ) {
             return dynamicObjects.getOrDefault(closure, index, CraterNil.getInstance());
         }
@@ -169,48 +157,32 @@ public final class CraterClosure extends DynamicObject implements TruffleObject 
             super(index);
         }
 
-        @Specialization(rewriteOn = UnexpectedResultException.class)
-        protected boolean doBoolean(
+        @Specialization(limit = "3")
+        protected Object doCached(
             CraterClosure closure,
-            @CachedLibrary(limit = "3") @Shared("dynamicObjects") DynamicObjectLibrary dynamicObjects,
-            @Cached @Shared("upvalueReadNode") CraterUpvalueBox.ReadNode upvalueReadNode
-        ) throws UnexpectedResultException {
-            var box = castExact(dynamicObjects.getOrDefault(closure, index, null), CraterUpvalueBox.class);
-            return upvalueReadNode.executeBoolean(box);
+            @CachedLibrary("closure") DynamicObjectLibrary dynamicObjects,
+            @Cached CraterUpvalueBox.ReadNode upvalueReadNode
+        ) {
+            return impl(closure, dynamicObjects, upvalueReadNode);
         }
 
-        @Specialization(rewriteOn = UnexpectedResultException.class)
-        protected long doLong(
-            CraterClosure closure,
-            @CachedLibrary(limit = "3") @Shared("dynamicObjects") DynamicObjectLibrary dynamicObjects,
-            @Cached @Shared("upvalueReadNode") CraterUpvalueBox.ReadNode upvalueReadNode
-        ) throws UnexpectedResultException {
-            var box = castExact(dynamicObjects.getOrDefault(closure, index, null), CraterUpvalueBox.class);
-            return upvalueReadNode.executeLong(box);
+        @Megamorphic
+        @TruffleBoundary
+        @Specialization(replaces = "doCached")
+        protected Object doUncached(CraterClosure closure) {
+            return impl(closure, DynamicObjectLibrary.getUncached(), CraterUpvalueBoxFactory.ReadNodeGen.getUncached());
         }
 
-        @Specialization(rewriteOn = UnexpectedResultException.class)
-        protected double doDouble(
+        private Object impl(
             CraterClosure closure,
-            @CachedLibrary(limit = "3") @Shared("dynamicObjects") DynamicObjectLibrary dynamicObjects,
-            @Cached @Shared("upvalueReadNode") CraterUpvalueBox.ReadNode upvalueReadNode
-        ) throws UnexpectedResultException {
-            var box = castExact(dynamicObjects.getOrDefault(closure, index, null), CraterUpvalueBox.class);
-            return upvalueReadNode.executeDouble(box);
-        }
-
-        @Specialization(replaces = {"doBoolean", "doLong", "doDouble"})
-        protected Object doGeneric(
-            CraterClosure closure,
-            @CachedLibrary(limit = "3") @Shared("dynamicObjects") DynamicObjectLibrary dynamicObjects,
-            @Cached @Shared("upvalueReadNode") CraterUpvalueBox.ReadNode upvalueReadNode
+            DynamicObjectLibrary dynamicObjects,
+            CraterUpvalueBox.ReadNode upvalueReadNode
         ) {
             var box = castExact(dynamicObjects.getOrDefault(closure, index, null), CraterUpvalueBox.class);
             return upvalueReadNode.executeGeneric(box);
         }
     }
 
-    @ReportPolymorphism.Exclude
     public static abstract class SetCaptureNode extends CraterNode {
         protected final int index;
 
@@ -218,14 +190,6 @@ public final class CraterClosure extends DynamicObject implements TruffleObject 
             assert index >= 0;
             this.index = index;
         }
-
-        public void execute(CraterClosure closure, boolean value) {
-            execute(closure, (Object) value);
-        }
-
-        public abstract void execute(CraterClosure closure, long value);
-
-        public abstract void execute(CraterClosure closure, double value);
 
         public abstract void execute(CraterClosure closure, Object value);
     }
@@ -236,30 +200,28 @@ public final class CraterClosure extends DynamicObject implements TruffleObject 
             super(index);
         }
 
-        @Specialization
-        protected void doLong(
-            CraterClosure closure,
-            long value,
-            @CachedLibrary(limit = "3") @Shared("dynamicObjects") DynamicObjectLibrary dynamicObjects
-        ) {
-            dynamicObjects.putLong(closure, index, value);
-        }
-
-        @Specialization
-        protected void doDouble(
-            CraterClosure closure,
-            double value,
-            @CachedLibrary(limit = "3") @Shared("dynamicObjects") DynamicObjectLibrary dynamicObjects
-        ) {
-            dynamicObjects.putDouble(closure, index, value);
-        }
-
-        @Specialization(replaces = {"doLong", "doDouble"})
-        protected void doGeneric(
+        @Specialization(limit = "3")
+        protected void doCached(
             CraterClosure closure,
             Object value,
-            @CachedLibrary(limit = "3") @Shared("dynamicObjects") DynamicObjectLibrary dynamicObjects,
+            @CachedLibrary("closure") DynamicObjectLibrary dynamicObjects,
             @Cached("createCountingProfile()") ConditionProfile nilProfile
+        ) {
+            impl(closure, value, dynamicObjects, nilProfile);
+        }
+
+        @Megamorphic
+        @TruffleBoundary
+        @Specialization(replaces = "doCached")
+        protected void doUncached(CraterClosure closure, Object value) {
+            impl(closure, value, DynamicObjectLibrary.getUncached(), ConditionProfile.getUncached());
+        }
+
+        private void impl(
+            CraterClosure closure,
+            Object value,
+            DynamicObjectLibrary dynamicObjects,
+            ConditionProfile nilProfile
         ) {
             if (nilProfile.profile(isNil(value))) {
                 dynamicObjects.putIfPresent(closure, index, asNil(value));
@@ -275,45 +237,33 @@ public final class CraterClosure extends DynamicObject implements TruffleObject 
             super(index);
         }
 
-        @Specialization
-        protected void doBoolean(
-            CraterClosure closure,
-            boolean value,
-            @CachedLibrary(limit = "3") @Shared("dynamicObjects") DynamicObjectLibrary dynamicObjects,
-            @Cached @Shared("upvalueWriteNode") CraterUpvalueBox.WriteNode upvalueWriteNode
-        ) {
-            var box = castExact(dynamicObjects.getOrDefault(closure, index, null), CraterUpvalueBox.class);
-            upvalueWriteNode.execute(box, value);
-        }
-
-        @Specialization
-        protected void doLong(
-            CraterClosure closure,
-            long value,
-            @CachedLibrary(limit = "3") @Shared("dynamicObjects") DynamicObjectLibrary dynamicObjects,
-            @Cached @Shared("upvalueWriteNode") CraterUpvalueBox.WriteNode upvalueWriteNode
-        ) {
-            var box = castExact(dynamicObjects.getOrDefault(closure, index, null), CraterUpvalueBox.class);
-            upvalueWriteNode.execute(box, value);
-        }
-
-        @Specialization
-        protected void doDouble(
-            CraterClosure closure,
-            double value,
-            @CachedLibrary(limit = "3") @Shared("dynamicObjects") DynamicObjectLibrary dynamicObjects,
-            @Cached @Shared("upvalueWriteNode") CraterUpvalueBox.WriteNode upvalueWriteNode
-        ) {
-            var box = castExact(dynamicObjects.getOrDefault(closure, index, null), CraterUpvalueBox.class);
-            upvalueWriteNode.execute(box, value);
-        }
-
-        @Specialization(replaces = {"doBoolean", "doLong", "doDouble"})
-        protected void doGeneric(
+        @Specialization(limit = "3")
+        protected void doCached(
             CraterClosure closure,
             Object value,
-            @CachedLibrary(limit = "3") @Shared("dynamicObjects") DynamicObjectLibrary dynamicObjects,
-            @Cached @Shared("upvalueWriteNode") CraterUpvalueBox.WriteNode upvalueWriteNode
+            @CachedLibrary("closure") DynamicObjectLibrary dynamicObjects,
+            @Cached CraterUpvalueBox.WriteNode upvalueWriteNode
+        ) {
+            impl(closure, value, dynamicObjects, upvalueWriteNode);
+        }
+
+        @Megamorphic
+        @TruffleBoundary
+        @Specialization(replaces = "doCached")
+        protected void doUncached(CraterClosure closure, Object value) {
+            impl(
+                closure,
+                value,
+                DynamicObjectLibrary.getUncached(),
+                CraterUpvalueBoxFactory.WriteNodeGen.getUncached()
+            );
+        }
+
+        private void impl(
+            CraterClosure closure,
+            Object value,
+            DynamicObjectLibrary dynamicObjects,
+            CraterUpvalueBox.WriteNode upvalueWriteNode
         ) {
             var box = castExact(dynamicObjects.getOrDefault(closure, index, null), CraterUpvalueBox.class);
             upvalueWriteNode.execute(box, value);
