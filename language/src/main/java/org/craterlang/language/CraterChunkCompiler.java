@@ -401,7 +401,7 @@ public class CraterChunkCompiler {
             var condition = new WhileConditionInstruction();
             condition.setSource(context.condition);
             condition.condition = process(context.condition);
-            condition.exitTarget = exitBlock;
+            condition.exitBlock = exitBlock;
             currentBasicBlock.append(condition);
 
             loopExits.push(exitBlock);
@@ -417,11 +417,67 @@ public class CraterChunkCompiler {
         }
 
         private void process(RepeatStatementContext context) {
-            // TODO
+            var loopBlock = new BasicBlock();
+            var exitBlock = new BasicBlock();
+
+            var entryFallthrough = new FallthroughInstruction();
+            entryFallthrough.setSource(context);
+            entryFallthrough.target = loopBlock;
+            currentBasicBlock.append(entryFallthrough);
+
+            currentBasicBlock = loopBlock;
+
+            loopExits.push(exitBlock);
+            process(context.body);
+            loopExits.pop();
+
+            var condition = new RepeatConditionInstruction();
+            condition.setSource(context.condition);
+            condition.condition = process(context.condition);
+            condition.loopBlock = loopBlock;
+            currentBasicBlock.append(condition);
+
+            var exitFallthrough = new FallthroughInstruction();
+            exitFallthrough.setSource(context);
+            exitFallthrough.target = exitBlock;
+            currentBasicBlock.append(exitFallthrough);
+
+            currentBasicBlock = exitBlock;
         }
 
         private void process(IfStatementContext context) {
-            // TODO
+            var endBlock = new BasicBlock();
+
+            for (var i = 0; i < context.conditions.size(); i++) {
+                var alternateBlock = new BasicBlock();
+
+                var conditionContext = context.conditions.get(i);
+                var condition = new IfConditionInstruction();
+                condition.setSource(conditionContext);
+                condition.condition = process(conditionContext);
+                condition.alternateBlock = alternateBlock;
+                currentBasicBlock.append(condition);
+
+                process(context.consequents.get(i));
+
+                var exit = new JumpInstruction();
+                exit.setSource(context);
+                exit.target = endBlock;
+                currentBasicBlock.append(exit);
+
+                currentBasicBlock = alternateBlock;
+            }
+
+            if (context.alternate != null) {
+                process(context.alternate);
+            }
+
+            var fallthrough = new FallthroughInstruction();
+            fallthrough.setSource(context);
+            fallthrough.target = endBlock;
+            currentBasicBlock.append(fallthrough);
+
+            currentBasicBlock = endBlock;
         }
 
         private void process(ForEqualsStatementContext context) {
@@ -522,18 +578,17 @@ public class CraterChunkCompiler {
 
     private static final class WhileConditionInstruction extends Instruction {
         private Instruction condition;
-        private BasicBlock exitTarget;
+        private BasicBlock exitBlock;
     }
 
-    private static abstract sealed class ConditionalBranchInstruction extends Instruction {
-        protected Instruction condition;
-        protected BasicBlock target;
+    private static final class RepeatConditionInstruction extends Instruction {
+        private Instruction condition;
+        private BasicBlock loopBlock;
     }
 
-    private static final class BranchIfInstruction extends ConditionalBranchInstruction {
-    }
-
-    private static final class LoopIfInstruction extends ConditionalBranchInstruction {
+    private static final class IfConditionInstruction extends Instruction {
+        private Instruction condition;
+        private BasicBlock alternateBlock;
     }
 
     private static final class NewindexInstruction extends Instruction {
