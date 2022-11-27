@@ -57,6 +57,8 @@ import java.util.Deque;
 import java.util.List;
 import java.util.function.Consumer;
 
+import static java.util.Objects.requireNonNull;
+
 public class CraterChunkCompiler {
     private final Source source;
 
@@ -121,27 +123,33 @@ public class CraterChunkCompiler {
     }
 
     private final class FunctionInstruction extends Instruction {
-        private static final class BlockScope {
-            private final BlockScope parentScope;
-            private final EconomicMap<String, LocalVar> declaredLocals = EconomicMap.create();
-            private final EconomicMap<String, BasicBlock> labels = EconomicMap.create();
-            private final EconomicMap<String, List<JumpInstruction>> unresolvedGotos = EconomicMap.create();
+        static final class BlockScope {
+            final BlockScope parentScope;
+            final EconomicMap<String, LocalVar> declaredLocals = EconomicMap.create();
+            final EconomicMap<String, BasicBlock> labels = EconomicMap.create();
+            final EconomicMap<String, List<GotoInstruction>> unresolvedGotos = EconomicMap.create();
 
-            private BlockScope(BlockScope parentScope) {
+            BlockScope(BlockScope parentScope) {
                 this.parentScope = parentScope;
             }
         }
 
-        private final FunctionInstruction parentFunction;
-        private final Deque<BasicBlock> loopExits = new ArrayDeque<>();
+        final FunctionInstruction parentFunction;
+        final Deque<BasicBlock> loopExits = new ArrayDeque<>();
 
-        private BlockScope currentBlockScope;
+        BlockScope currentBlockScope;
 
-        private final BasicBlock entryBlock = new BasicBlock();
-        private BasicBlock currentBasicBlock = entryBlock;
+        final List<BasicBlock> blocks = new ArrayList<>();
 
-        private FunctionInstruction(FunctionInstruction parentFunction) {
+        private FunctionInstruction(ParserRuleContext context, FunctionInstruction parentFunction) {
+            super(context);
             this.parentFunction = parentFunction;
+            blocks.add(new BasicBlock());
+        }
+
+        private <I extends Instruction> I append(I instruction) {
+            blocks.get(blocks.size() - 1).instructions.add(instruction);
+            return instruction;
         }
 
         private Instruction process(ExpressionContext context) {
@@ -254,10 +262,7 @@ public class CraterChunkCompiler {
         }
 
         private void process(ReturnStatementContext context) {
-            var instruction = new ReturnInstruction();
-            instruction.setSource(context);
-            instruction.values = context.values.stream().map(this::process).toList();
-            currentBasicBlock.append(instruction);
+            append(new ReturnInstruction(context, context.values.stream().map(this::process).toList()));
         }
 
         private void process(StatementContext context) {
@@ -332,21 +337,15 @@ public class CraterChunkCompiler {
             }
 
             var labeledBlock = new BasicBlock();
-            currentBlockScope.labels.put(nameString, labeledBlock);
+            blocks.add(labeledBlock);
 
+            currentBlockScope.labels.put(nameString, labeledBlock);
             var unresolved = currentBlockScope.unresolvedGotos.removeKey(nameString);
             if (unresolved != null) {
                 for (var instruction : unresolved) {
                     instruction.target = labeledBlock;
                 }
             }
-
-            var instruction = new FallthroughInstruction();
-            instruction.setSource(context);
-            instruction.target = labeledBlock;
-            currentBasicBlock.append(instruction);
-
-            currentBasicBlock = labeledBlock;
         }
 
         private void process(BreakStatementContext context) {
@@ -354,16 +353,11 @@ public class CraterChunkCompiler {
                 throw createParseException(context, "\"break\" statement outside of a loop");
             }
 
-            var instruction = new JumpInstruction();
-            instruction.setSource(context);
-            instruction.target = loopExits.getLast();
-            currentBasicBlock.append(instruction);
+            append(new JumpInstruction(context, loopExits.getLast()));
         }
 
         private void process(GotoStatementContext context) {
-            var instruction = new JumpInstruction();
-            instruction.setSource(context);
-
+            var instruction = append(new GotoInstruction(context));
             var targetName = context.target.getText();
             var targetBlock = currentBlockScope.labels.get(targetName);
             if (targetBlock == null) {
@@ -379,8 +373,6 @@ public class CraterChunkCompiler {
             else {
                 instruction.target = targetBlock;
             }
-
-            currentBasicBlock.append(instruction);
         }
 
         private void process(BlockStatementContext context) {
@@ -391,58 +383,32 @@ public class CraterChunkCompiler {
             var loopBlock = new BasicBlock();
             var exitBlock = new BasicBlock();
 
-            var fallthrough = new FallthroughInstruction();
-            fallthrough.setSource(context);
-            fallthrough.target = loopBlock;
-            currentBasicBlock.append(fallthrough);
+            blocks.add(loopBlock);
 
-            currentBasicBlock = loopBlock;
-
-            var condition = new WhileConditionInstruction();
-            condition.setSource(context.condition);
-            condition.condition = process(context.condition);
-            condition.exitBlock = exitBlock;
-            currentBasicBlock.append(condition);
+            append(new WhileConditionInstruction(context.condition, process(context.condition), exitBlock));
 
             loopExits.push(exitBlock);
             process(context.body);
             loopExits.pop();
 
-            var loopBack = new JumpInstruction();
-            loopBack.setSource(context);
-            loopBack.target = loopBlock;
-            currentBasicBlock.append(loopBack);
+            append(new JumpInstruction(context, loopBlock));
 
-            currentBasicBlock = exitBlock;
+            blocks.add(exitBlock);
         }
 
         private void process(RepeatStatementContext context) {
             var loopBlock = new BasicBlock();
             var exitBlock = new BasicBlock();
 
-            var entryFallthrough = new FallthroughInstruction();
-            entryFallthrough.setSource(context);
-            entryFallthrough.target = loopBlock;
-            currentBasicBlock.append(entryFallthrough);
-
-            currentBasicBlock = loopBlock;
+            blocks.add(loopBlock);
 
             loopExits.push(exitBlock);
             process(context.body);
             loopExits.pop();
 
-            var condition = new RepeatConditionInstruction();
-            condition.setSource(context.condition);
-            condition.condition = process(context.condition);
-            condition.loopBlock = loopBlock;
-            currentBasicBlock.append(condition);
+            append(new RepeatConditionInstruction(context.condition, process(context.condition), loopBlock));
 
-            var exitFallthrough = new FallthroughInstruction();
-            exitFallthrough.setSource(context);
-            exitFallthrough.target = exitBlock;
-            currentBasicBlock.append(exitFallthrough);
-
-            currentBasicBlock = exitBlock;
+            blocks.add(exitBlock);
         }
 
         private void process(IfStatementContext context) {
@@ -450,34 +416,18 @@ public class CraterChunkCompiler {
 
             for (var i = 0; i < context.conditions.size(); i++) {
                 var alternateBlock = new BasicBlock();
-
                 var conditionContext = context.conditions.get(i);
-                var condition = new IfConditionInstruction();
-                condition.setSource(conditionContext);
-                condition.condition = process(conditionContext);
-                condition.alternateBlock = alternateBlock;
-                currentBasicBlock.append(condition);
-
+                append(new IfConditionInstruction(conditionContext, process(conditionContext), alternateBlock));
                 process(context.consequents.get(i));
-
-                var exit = new JumpInstruction();
-                exit.setSource(context);
-                exit.target = endBlock;
-                currentBasicBlock.append(exit);
-
-                currentBasicBlock = alternateBlock;
+                append(new JumpInstruction(context, endBlock));
+                blocks.add(alternateBlock);
             }
 
             if (context.alternate != null) {
                 process(context.alternate);
             }
 
-            var fallthrough = new FallthroughInstruction();
-            fallthrough.setSource(context);
-            fallthrough.target = endBlock;
-            currentBasicBlock.append(fallthrough);
-
-            currentBasicBlock = endBlock;
+            blocks.add(endBlock);
         }
 
         private void process(ForEqualsStatementContext context) {
@@ -502,115 +452,194 @@ public class CraterChunkCompiler {
     }
 
     private static abstract sealed class Var {
-        protected final List<LoadInstruction> loads = new ArrayList<>();
-        protected final List<StoreInstruction> stores = new ArrayList<>();
-        protected final List<CapturedVar> captures = new ArrayList<>();
+        final List<LoadInstruction> loads = new ArrayList<>();
+        final List<StoreInstruction> stores = new ArrayList<>();
+        final List<CapturedVar> captures = new ArrayList<>();
     }
 
     private static final class LocalVar extends Var {
     }
 
     private static final class CapturedVar extends Var {
-        private final Var source;
+        final Var source;
 
-        private CapturedVar(Var source) {
+        CapturedVar(Var source) {
             this.source = source;
         }
     }
 
     private static final class BasicBlock {
-        private final List<Instruction> instructions = new ArrayList<>();
-
-        private void append(Instruction instruction) {
-            instructions.add(instruction);
-        }
+        final List<Instruction> instructions = new ArrayList<>();
     }
 
     private static abstract sealed class Instruction {
-        private int sourceStart = -1;
-        private int sourceLength = 0;
+        final int sourceStart;
+        final int sourceLength;
 
-        protected final void setSource(Token token) {
-            sourceStart = token.getStartIndex();
-            sourceLength = token.getStopIndex() - token.getStartIndex() + 1;
-        }
-
-        protected final void setSource(ParserRuleContext context) {
-            sourceStart = context.getStart().getStartIndex();
-            sourceLength = context.getStop().getStopIndex() - context.getStart().getStartIndex() + 1;
+        Instruction(ParserRuleContext context) {
+            if (context != null) {
+                sourceStart = context.getStart().getStartIndex();
+                sourceLength = context.getStop().getStopIndex() - context.getStart().getStartIndex() + 1;
+            }
+            else {
+                sourceStart = -1;
+                sourceLength = 0;
+            }
         }
     }
 
     private static final class GetArgumentInstruction extends Instruction {
-        private int argumentIndex;
+        final int argumentIndex;
+
+        GetArgumentInstruction(ParserRuleContext context, int argumentIndex) {
+            super(context);
+            this.argumentIndex = argumentIndex;
+        }
     }
 
     private static final class ReturnInstruction extends Instruction {
-        private List<Instruction> values;
+        final List<Instruction> values;
+
+        ReturnInstruction(ParserRuleContext context, List<Instruction> values) {
+            super(context);
+            this.values = requireNonNull(values);
+        }
     }
 
     private static final class LoadInstruction extends Instruction {
-        private Var var;
+        final Var var;
+
+        LoadInstruction(ParserRuleContext context, Var var) {
+            super(context);
+            this.var = requireNonNull(var);
+        }
     }
 
     private static final class StoreInstruction extends Instruction {
-        private Var var;
-        private Instruction value;
+        final Var var;
+        final Instruction value;
+
+        StoreInstruction(ParserRuleContext context, Var var, Instruction value) {
+            super(context);
+            this.var = requireNonNull(var);
+            this.value = requireNonNull(value);
+        }
     }
 
     private static final class ConstantInstruction extends Instruction {
-        private Object value;
+        final Object value;
+
+        ConstantInstruction(ParserRuleContext context, Object value) {
+            super(context);
+            this.value = requireNonNull(value);
+        }
     }
 
     private static final class MergeInstruction extends Instruction {
-        private Instruction first, second;
+        final Instruction first, second;
+
+        MergeInstruction(ParserRuleContext context, Instruction first, Instruction second) {
+            super(context);
+            this.first = requireNonNull(first);
+            this.second = requireNonNull(second);
+        }
     }
 
-    private static abstract sealed class UnconditionalBranchInstruction extends Instruction {
-        protected BasicBlock target;
+    private static final class GotoInstruction extends Instruction {
+        BasicBlock target;
+
+        GotoInstruction(ParserRuleContext context) {
+            super(context);
+        }
     }
 
-    private static final class JumpInstruction extends UnconditionalBranchInstruction {
-    }
+    private static final class JumpInstruction extends Instruction {
+        final BasicBlock target;
 
-    private static final class FallthroughInstruction extends UnconditionalBranchInstruction {
+        JumpInstruction(ParserRuleContext context, BasicBlock target) {
+            super(context);
+            this.target = requireNonNull(target);
+        }
     }
 
     private static final class WhileConditionInstruction extends Instruction {
-        private Instruction condition;
-        private BasicBlock exitBlock;
+        final Instruction condition;
+        final BasicBlock exitBlock;
+
+        WhileConditionInstruction(ParserRuleContext context, Instruction condition, BasicBlock exitBlock) {
+            super(context);
+            this.condition = requireNonNull(condition);
+            this.exitBlock = requireNonNull(exitBlock);
+        }
     }
 
     private static final class RepeatConditionInstruction extends Instruction {
-        private Instruction condition;
-        private BasicBlock loopBlock;
+        final Instruction condition;
+        final BasicBlock loopBlock;
+
+        RepeatConditionInstruction(ParserRuleContext context, Instruction condition, BasicBlock loopBlock) {
+            super(context);
+            this.condition = requireNonNull(condition);
+            this.loopBlock = requireNonNull(loopBlock);
+        }
     }
 
     private static final class IfConditionInstruction extends Instruction {
-        private Instruction condition;
-        private BasicBlock alternateBlock;
+        final Instruction condition;
+        final BasicBlock alternateBlock;
+
+        IfConditionInstruction(ParserRuleContext context, Instruction condition, BasicBlock alternateBlock) {
+            super(context);
+            this.condition = requireNonNull(condition);
+            this.alternateBlock = requireNonNull(alternateBlock);
+        }
     }
 
     private static final class NewindexInstruction extends Instruction {
-        private Instruction receiver;
-        private Instruction key;
-        private Instruction value;
+        final Instruction receiver;
+        final Instruction key;
+        final Instruction value;
+
+        NewindexInstruction(ParserRuleContext context, Instruction receiver, Instruction key, Instruction value) {
+            super(context);
+            this.receiver = requireNonNull(receiver);
+            this.key = requireNonNull(key);
+            this.value = requireNonNull(value);
+        }
     }
 
     private static abstract sealed class CallInstruction extends Instruction {
-        private Instruction callee;
-        private List<Instruction> arguments;
+        final Instruction callee;
+        final List<Instruction> arguments;
+
+        CallInstruction(ParserRuleContext context, Instruction callee, List<Instruction> arguments) {
+            super(context);
+            this.callee = requireNonNull(callee);
+            this.arguments = requireNonNull(arguments);
+        }
     }
 
     private static final class NonTailCallInstruction extends CallInstruction {
+        NonTailCallInstruction(ParserRuleContext context, Instruction callee, List<Instruction> arguments) {
+            super(context, callee, arguments);
+        }
     }
 
     private static final class TailCallInstruction extends CallInstruction {
+        TailCallInstruction(ParserRuleContext context, Instruction callee, List<Instruction> arguments) {
+            super(context, callee, arguments);
+        }
     }
 
     private static final class UnopInstruction extends Instruction {
-        private Op op;
-        private Instruction operand;
+        final Op op;
+        final Instruction operand;
+
+        UnopInstruction(ParserRuleContext context, Op op, Instruction operand) {
+            super(context);
+            this.op = requireNonNull(op);
+            this.operand = requireNonNull(operand);
+        }
 
         private enum Op {
             BNOT,
@@ -621,9 +650,16 @@ public class CraterChunkCompiler {
     }
 
     private static final class BinopInstruction extends Instruction {
-        private Op op;
-        private Instruction lhs;
-        private Instruction rhs;
+        final Op op;
+        final Instruction lhs;
+        final Instruction rhs;
+
+        BinopInstruction(ParserRuleContext context, Op op, Instruction lhs, Instruction rhs) {
+            super(context);
+            this.op = requireNonNull(op);
+            this.lhs = requireNonNull(lhs);
+            this.rhs = requireNonNull(rhs);
+        }
 
         private enum Op {
             ADD,
