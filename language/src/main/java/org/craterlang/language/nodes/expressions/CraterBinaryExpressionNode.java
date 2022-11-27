@@ -1,4 +1,4 @@
-package org.craterlang.language.nodes;
+package org.craterlang.language.nodes.expressions;
 
 import com.oracle.truffle.api.dsl.NodeChild;
 

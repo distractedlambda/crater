@@ -9,7 +9,6 @@ import com.oracle.truffle.api.TruffleLanguage;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.object.Shape;
 import org.craterlang.language.runtime.CraterClosure;
-import org.craterlang.language.runtime.CraterContinuationFrame;
 import org.craterlang.language.runtime.CraterNil;
 import org.craterlang.language.runtime.CraterString;
 import org.craterlang.language.runtime.CraterTable;
@@ -100,12 +99,6 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
         .propertyAssumptions(true)
         .singleContextAssumption(singleContextAssumption)
         .layout(CraterClosure.class)
-        .build();
-
-    private final Shape rootContinuationFrameShape = Shape.newBuilder()
-        .propertyAssumptions(true)
-        .singleContextAssumption(singleContextAssumption)
-        .layout(CraterContinuationFrame.class)
         .build();
 
     @CompilationFinal
@@ -210,10 +203,6 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
 
     public Shape getRootClosureShape() {
         return rootClosureShape;
-    }
-
-    public Shape getRootContinuationFrameShape() {
-        return rootContinuationFrameShape;
     }
 
     @TruffleBoundary
