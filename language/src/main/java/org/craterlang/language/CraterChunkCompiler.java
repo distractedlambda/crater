@@ -53,7 +53,7 @@ import org.craterlang.language.CraterParser.WhileStatementContext;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -74,6 +74,15 @@ public class CraterChunkCompiler {
             context.getStart().getStartIndex(),
             context.getStop().getStopIndex() - context.getStart().getStartIndex() + 1
         );
+    }
+
+    private SourceSection getSourceSection(Instruction instruction) {
+        if (instruction.sourceStart < 0) {
+            return source.createUnavailableSection();
+        }
+        else {
+            return source.createSection(instruction.sourceStart, instruction.sourceLength);
+        }
     }
 
     private CraterParseException createParseException(Token token, String message, Throwable cause) {
@@ -100,32 +109,40 @@ public class CraterChunkCompiler {
         return createParseException(context, null, cause);
     }
 
-    private final class FunctionGraph {
-        private final FunctionGraph parentFunction;
-        private final Map<String, LocalVar> declaredVars = new HashMap<>();
-        private final List<BasicBlock> basicBlocks = new ArrayList<>();
+    private CraterParseException createParseException(Instruction instruction, String message, Throwable cause) {
+        return CraterParseException.create(getSourceSection(instruction), message, cause);
+    }
+
+    private CraterParseException createParseException(Instruction instruction, String message) {
+        return createParseException(instruction, message, null);
+    }
+
+    private CraterParseException createParseException(Instruction instruction, Throwable cause) {
+        return createParseException(instruction, null, cause);
+    }
+
+    private final class FunctionInstruction extends Instruction {
+        private static final class BlockScope {
+            private final BlockScope parentScope;
+            private final Map<String, LocalVar> declaredLocals = new LinkedHashMap<>();
+            private final Map<String, BasicBlock> labels = new LinkedHashMap<>();
+            private final Map<String, List<JumpInstruction>> unresolvedGotos = new LinkedHashMap<>();
+
+            private BlockScope(BlockScope parentScope) {
+                this.parentScope = parentScope;
+            }
+        }
+
+        private final FunctionInstruction parentFunction;
         private final Deque<BasicBlock> loopExits = new ArrayDeque<>();
 
-        private BasicBlock currentBasicBlock;
+        private BlockScope currentBlockScope;
 
-        private FunctionGraph(FunctionGraph parentFunction) {
+        private final BasicBlock entryBlock = new BasicBlock();
+        private BasicBlock currentBasicBlock = entryBlock;
+
+        private FunctionInstruction(FunctionInstruction parentFunction) {
             this.parentFunction = parentFunction;
-        }
-
-        private BasicBlock getCurrentBlock() {
-            if (currentBasicBlock == null) {
-                currentBasicBlock = new BasicBlock();
-            }
-
-            return currentBasicBlock;
-        }
-
-        private void finishBlock() {
-            if (currentBasicBlock != null && !currentBasicBlock.instructions.isEmpty()) {
-                basicBlocks.add(currentBasicBlock);
-            }
-
-            currentBasicBlock = null;
         }
 
         private Instruction process(ExpressionContext context) {
@@ -219,6 +236,9 @@ public class CraterChunkCompiler {
         }
 
         private void process(BlockContext context) {
+            var scope = new BlockScope(currentBlockScope);
+            currentBlockScope = scope;
+
             for (var statement : context.statements) {
                 process(statement);
             }
@@ -226,6 +246,12 @@ public class CraterChunkCompiler {
             if (context.ret != null) {
                 process(context.ret);
             }
+
+            for (var unresolved : scope.unresolvedGotos.values()) {
+                throw createParseException(unresolved.get(0), "No matching label found");
+            }
+
+            currentBlockScope = scope.parentScope;
         }
 
         private void process(ReturnStatementContext context) {
@@ -299,7 +325,29 @@ public class CraterChunkCompiler {
         }
 
         private void process(LabelStatementContext context) {
-            // TODO
+            var nameString = context.name.getText();
+            for (var scope = currentBlockScope; scope != null; scope = scope.parentScope) {
+                if (scope.labels.containsKey(nameString)) {
+                    throw createParseException(context, "An identically-named label is already in scope");
+                }
+            }
+
+            var labeledBlock = new BasicBlock();
+            currentBlockScope.labels.put(nameString, labeledBlock);
+
+            var unresolved = currentBlockScope.unresolvedGotos.remove(nameString);
+            if (unresolved != null) {
+                for (var instruction : unresolved) {
+                    instruction.target = labeledBlock;
+                }
+            }
+
+            var instruction = new FallthroughInstruction();
+            instruction.setSource(context);
+            instruction.target = labeledBlock;
+            currentBasicBlock.append(instruction);
+
+            currentBasicBlock = labeledBlock;
         }
 
         private void process(BreakStatementContext context) {
@@ -307,14 +355,26 @@ public class CraterChunkCompiler {
                 throw createParseException(context, "\"break\" statement outside of a loop");
             }
 
-            var instruction = new BranchInstruction();
+            var instruction = new JumpInstruction();
             instruction.setSource(context);
             instruction.target = loopExits.getLast();
             currentBasicBlock.append(instruction);
         }
 
         private void process(GotoStatementContext context) {
-            // TODO
+            var instruction = new JumpInstruction();
+            instruction.setSource(context);
+
+            var targetName = context.target.getText();
+            var targetBlock = currentBlockScope.labels.get(targetName);
+            if (targetBlock == null) {
+                currentBlockScope.unresolvedGotos.computeIfAbsent(targetName, k -> new ArrayList<>()).add(instruction);
+            }
+            else {
+                instruction.target = targetBlock;
+            }
+
+            currentBasicBlock.append(instruction);
         }
 
         private void process(BlockStatementContext context) {
@@ -322,7 +382,32 @@ public class CraterChunkCompiler {
         }
 
         private void process(WhileStatementContext context) {
-            // TODO
+            var loopBlock = new BasicBlock();
+            var exitBlock = new BasicBlock();
+
+            var fallthrough = new FallthroughInstruction();
+            fallthrough.setSource(context);
+            fallthrough.target = loopBlock;
+            currentBasicBlock.append(fallthrough);
+
+            currentBasicBlock = loopBlock;
+
+            var condition = new WhileConditionInstruction();
+            condition.setSource(context.condition);
+            condition.condition = process(context.condition);
+            condition.exitTarget = exitBlock;
+            currentBasicBlock.append(condition);
+
+            loopExits.push(exitBlock);
+            process(context.body);
+            loopExits.pop();
+
+            var loopBack = new JumpInstruction();
+            loopBack.setSource(context);
+            loopBack.target = loopBlock;
+            currentBasicBlock.append(loopBack);
+
+            currentBasicBlock = exitBlock;
         }
 
         private void process(RepeatStatementContext context) {
@@ -354,7 +439,22 @@ public class CraterChunkCompiler {
         }
     }
 
-    private static final class LocalVar {}
+    private static abstract sealed class Var {
+        protected final List<LoadInstruction> loads = new ArrayList<>();
+        protected final List<StoreInstruction> stores = new ArrayList<>();
+        protected final List<CapturedVar> captures = new ArrayList<>();
+    }
+
+    private static final class LocalVar extends Var {
+    }
+
+    private static final class CapturedVar extends Var {
+        private final Var source;
+
+        private CapturedVar(Var source) {
+            this.source = source;
+        }
+    }
 
     private static final class BasicBlock {
         private final List<Instruction> instructions = new ArrayList<>();
@@ -383,20 +483,16 @@ public class CraterChunkCompiler {
         private int argumentIndex;
     }
 
-    private static final class NewClosureInstruction extends Instruction {
-        private FunctionGraph function;
-    }
-
     private static final class ReturnInstruction extends Instruction {
         private List<Instruction> values;
     }
 
     private static final class LoadInstruction extends Instruction {
-        private LocalVar localVar;
+        private Var var;
     }
 
     private static final class StoreInstruction extends Instruction {
-        private LocalVar localVar;
+        private Var var;
         private Instruction value;
     }
 
@@ -408,13 +504,24 @@ public class CraterChunkCompiler {
         private Instruction first, second;
     }
 
-    private static final class BranchInstruction extends Instruction {
-        private BasicBlock target;
+    private static abstract sealed class UnconditionalBranchInstruction extends Instruction {
+        protected BasicBlock target;
+    }
+
+    private static final class JumpInstruction extends UnconditionalBranchInstruction {
+    }
+
+    private static final class FallthroughInstruction extends UnconditionalBranchInstruction {
+    }
+
+    private static final class WhileConditionInstruction extends Instruction {
+        private Instruction condition;
+        private BasicBlock exitTarget;
     }
 
     private static abstract sealed class ConditionalBranchInstruction extends Instruction {
-        private Instruction condition;
-        private BasicBlock target;
+        protected Instruction condition;
+        protected BasicBlock target;
     }
 
     private static final class BranchIfInstruction extends ConditionalBranchInstruction {
