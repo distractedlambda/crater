@@ -4,12 +4,11 @@ import com.oracle.truffle.api.dsl.ReportPolymorphism;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.frame.VirtualFrame;
 import com.oracle.truffle.api.nodes.UnexpectedResultException;
-import org.craterlang.language.CraterNode;
 
 import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
 
 @ReportPolymorphism.Exclude
-public abstract class CraterLocalReadNode extends CraterNode {
+public abstract class CraterLocalReadNode extends CraterExpressionNode {
     protected final int slot;
 
     protected CraterLocalReadNode(int slot) {

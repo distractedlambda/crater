@@ -9,7 +9,10 @@ program:
   | body=expression EOF #ExpressionProgram;
 
 block:
-    (statements+=statement)* ('return' (returnValues+=expression (',' returnValues+=expression)*)? ';'?)?;
+    (statements+=statement)* ret=returnStatement?;
+
+returnStatement:
+    'return' (values+=expression (',' values+=expression)*)? ';'?;
 
 statement:
     ';' #EmptyStatement
