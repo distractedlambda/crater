@@ -49,13 +49,12 @@ import org.craterlang.language.CraterParser.StatementContext;
 import org.craterlang.language.CraterParser.TableExpressionContext;
 import org.craterlang.language.CraterParser.VarContext;
 import org.craterlang.language.CraterParser.WhileStatementContext;
+import org.graalvm.collections.EconomicMap;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 
 public class CraterChunkCompiler {
@@ -124,9 +123,9 @@ public class CraterChunkCompiler {
     private final class FunctionInstruction extends Instruction {
         private static final class BlockScope {
             private final BlockScope parentScope;
-            private final Map<String, LocalVar> declaredLocals = new LinkedHashMap<>();
-            private final Map<String, BasicBlock> labels = new LinkedHashMap<>();
-            private final Map<String, List<JumpInstruction>> unresolvedGotos = new LinkedHashMap<>();
+            private final EconomicMap<String, LocalVar> declaredLocals = EconomicMap.create();
+            private final EconomicMap<String, BasicBlock> labels = EconomicMap.create();
+            private final EconomicMap<String, List<JumpInstruction>> unresolvedGotos = EconomicMap.create();
 
             private BlockScope(BlockScope parentScope) {
                 this.parentScope = parentScope;
@@ -247,7 +246,7 @@ public class CraterChunkCompiler {
                 process(context.ret);
             }
 
-            for (var unresolved : scope.unresolvedGotos.values()) {
+            for (var unresolved : scope.unresolvedGotos.getValues()) {
                 throw createParseException(unresolved.get(0), "No matching label found");
             }
 
@@ -335,7 +334,7 @@ public class CraterChunkCompiler {
             var labeledBlock = new BasicBlock();
             currentBlockScope.labels.put(nameString, labeledBlock);
 
-            var unresolved = currentBlockScope.unresolvedGotos.remove(nameString);
+            var unresolved = currentBlockScope.unresolvedGotos.removeKey(nameString);
             if (unresolved != null) {
                 for (var instruction : unresolved) {
                     instruction.target = labeledBlock;
@@ -368,7 +367,14 @@ public class CraterChunkCompiler {
             var targetName = context.target.getText();
             var targetBlock = currentBlockScope.labels.get(targetName);
             if (targetBlock == null) {
-                currentBlockScope.unresolvedGotos.computeIfAbsent(targetName, k -> new ArrayList<>()).add(instruction);
+                var unresolved = currentBlockScope.unresolvedGotos.get(targetName);
+
+                if (unresolved == null) {
+                    unresolved = new ArrayList<>();
+                    currentBlockScope.unresolvedGotos.put(targetName, unresolved);
+                }
+
+                unresolved.add(instruction);
             }
             else {
                 instruction.target = targetBlock;
