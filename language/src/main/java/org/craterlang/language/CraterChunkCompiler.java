@@ -50,6 +50,7 @@ import org.craterlang.language.CraterParser.TableExpressionContext;
 import org.craterlang.language.CraterParser.VarContext;
 import org.craterlang.language.CraterParser.WhileStatementContext;
 import org.graalvm.collections.EconomicMap;
+import org.graalvm.collections.EconomicSet;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -147,12 +148,24 @@ public class CraterChunkCompiler {
             blocks.add(new BasicBlock());
         }
 
-        private <I extends Instruction> I append(I instruction) {
-            blocks.get(blocks.size() - 1).instructions.add(instruction);
-            return instruction;
+        private BasicBlock currentBlock() {
+            return blocks.get(blocks.size() - 1);
         }
 
-        private Instruction process(ExpressionContext context) {
+        private <I extends Instruction> I append(I instruction) {
+            return currentBlock().append(instruction);
+        }
+
+        private BasicBlock addBasicBlock(BasicBlock block) {
+            if (!currentBlock().terminated) {
+                currentBlock().addSuccessor(block);
+            }
+
+            blocks.add(block);
+            return block;
+        }
+
+        private Operand process(ExpressionContext context) {
             if (context instanceof LiteralExpressionContext ctx) {
                 return process(ctx);
             }
@@ -206,7 +219,7 @@ public class CraterChunkCompiler {
             }
         }
 
-        private Instruction process(PrefixExpressionContext context) {
+        private Operand process(PrefixExpressionContext context) {
             if (context instanceof NameExpressionContext ctx) {
                 return process(ctx);
             }
@@ -227,7 +240,7 @@ public class CraterChunkCompiler {
             }
         }
 
-        private Consumer<Instruction> process(VarContext context) {
+        private Consumer<Operand> process(VarContext context) {
             if (context instanceof NamedVarContext ctx) {
                 return process(ctx);
             }
@@ -336,14 +349,13 @@ public class CraterChunkCompiler {
                 }
             }
 
-            var labeledBlock = new BasicBlock();
-            blocks.add(labeledBlock);
-
+            var labeledBlock = addBasicBlock(new BasicBlock());
             currentBlockScope.labels.put(nameString, labeledBlock);
+
             var unresolved = currentBlockScope.unresolvedGotos.removeKey(nameString);
             if (unresolved != null) {
                 for (var instruction : unresolved) {
-                    instruction.target = labeledBlock;
+                    instruction.linkTarget(labeledBlock);
                 }
             }
         }
@@ -371,7 +383,7 @@ public class CraterChunkCompiler {
                 unresolved.add(instruction);
             }
             else {
-                instruction.target = targetBlock;
+                instruction.linkTarget(targetBlock);
             }
         }
 
@@ -380,10 +392,8 @@ public class CraterChunkCompiler {
         }
 
         private void process(WhileStatementContext context) {
-            var loopBlock = new BasicBlock();
+            var loopBlock = addBasicBlock(new BasicBlock());
             var exitBlock = new BasicBlock();
-
-            blocks.add(loopBlock);
 
             append(new WhileConditionInstruction(context.condition, process(context.condition), exitBlock));
 
@@ -393,14 +403,12 @@ public class CraterChunkCompiler {
 
             append(new JumpInstruction(context, loopBlock));
 
-            blocks.add(exitBlock);
+            addBasicBlock(exitBlock);
         }
 
         private void process(RepeatStatementContext context) {
-            var loopBlock = new BasicBlock();
+            var loopBlock = addBasicBlock(new BasicBlock());
             var exitBlock = new BasicBlock();
-
-            blocks.add(loopBlock);
 
             loopExits.push(exitBlock);
             process(context.body);
@@ -408,7 +416,7 @@ public class CraterChunkCompiler {
 
             append(new RepeatConditionInstruction(context.condition, process(context.condition), loopBlock));
 
-            blocks.add(exitBlock);
+            addBasicBlock(exitBlock);
         }
 
         private void process(IfStatementContext context) {
@@ -420,14 +428,14 @@ public class CraterChunkCompiler {
                 append(new IfConditionInstruction(conditionContext, process(conditionContext), alternateBlock));
                 process(context.consequents.get(i));
                 append(new JumpInstruction(context, endBlock));
-                blocks.add(alternateBlock);
+                addBasicBlock(alternateBlock);
             }
 
             if (context.alternate != null) {
                 process(context.alternate);
             }
 
-            blocks.add(endBlock);
+            addBasicBlock(endBlock);
         }
 
         private void process(ForEqualsStatementContext context) {
@@ -451,10 +459,26 @@ public class CraterChunkCompiler {
         }
     }
 
+    private static abstract sealed class Operand {
+        abstract void addUse(Instruction user);
+    }
+
+    private static final class Constant extends Operand {
+        final Object value;
+
+        Constant(Object value) {
+            this.value = requireNonNull(value);
+        }
+
+        @Override void addUse(Instruction user) {
+            // Nothing to do
+        }
+    }
+
     private static abstract sealed class Var {
-        final List<LoadInstruction> loads = new ArrayList<>();
-        final List<StoreInstruction> stores = new ArrayList<>();
-        final List<CapturedVar> captures = new ArrayList<>();
+        final EconomicSet<LoadInstruction> loads = EconomicSet.create();
+        final EconomicSet<StoreInstruction> stores = EconomicSet.create();
+        final EconomicSet<CapturedVar> captures = EconomicSet.create();
     }
 
     private static final class LocalVar extends Var {
@@ -464,15 +488,41 @@ public class CraterChunkCompiler {
         final Var source;
 
         CapturedVar(Var source) {
-            this.source = source;
+            this.source = requireNonNull(source);
+            source.captures.add(this);
         }
     }
 
     private static final class BasicBlock {
         final List<Instruction> instructions = new ArrayList<>();
+        final EconomicSet<BasicBlock> predecessors = EconomicSet.create();
+        final EconomicSet<BasicBlock> successors = EconomicSet.create();
+
+        boolean terminated;
+
+        <I extends Instruction> I append(I instruction) {
+            instruction.visitBranchTargets(this::addSuccessor);
+
+            if (instruction.isTerminator()) {
+                terminated = true;
+            }
+
+            instructions.add(instruction);
+            instruction.block = this;
+
+            return instruction;
+        }
+
+        void addSuccessor(BasicBlock successor) {
+            successors.add(successor);
+            successor.predecessors.add(this);
+        }
     }
 
-    private static abstract sealed class Instruction {
+    private static abstract sealed class Instruction extends Operand {
+        BasicBlock block;
+
+        final EconomicSet<Instruction> uses = EconomicSet.create();
         final int sourceStart;
         final int sourceLength;
 
@@ -486,6 +536,18 @@ public class CraterChunkCompiler {
                 sourceLength = 0;
             }
         }
+
+        @Override final void addUse(Instruction user) {
+            uses.add(user);
+        }
+
+        boolean isTerminator() {
+            return false;
+        }
+
+        void visitBranchTargets(Consumer<BasicBlock> visitor) {
+            // Default impl does nothing
+        }
     }
 
     private static final class GetArgumentInstruction extends Instruction {
@@ -498,11 +560,18 @@ public class CraterChunkCompiler {
     }
 
     private static final class ReturnInstruction extends Instruction {
-        final List<Instruction> values;
+        final List<Operand> values;
 
-        ReturnInstruction(ParserRuleContext context, List<Instruction> values) {
+        ReturnInstruction(ParserRuleContext context, List<Operand> values) {
             super(context);
             this.values = requireNonNull(values);
+            for (var value : values) {
+                value.addUse(this);
+            }
+        }
+
+        @Override boolean isTerminator() {
+            return true;
         }
     }
 
@@ -512,44 +581,54 @@ public class CraterChunkCompiler {
         LoadInstruction(ParserRuleContext context, Var var) {
             super(context);
             this.var = requireNonNull(var);
+            var.loads.add(this);
         }
     }
 
     private static final class StoreInstruction extends Instruction {
         final Var var;
-        final Instruction value;
+        final Operand value;
 
-        StoreInstruction(ParserRuleContext context, Var var, Instruction value) {
+        StoreInstruction(ParserRuleContext context, Var var, Operand value) {
             super(context);
+
             this.var = requireNonNull(var);
             this.value = requireNonNull(value);
-        }
-    }
 
-    private static final class ConstantInstruction extends Instruction {
-        final Object value;
-
-        ConstantInstruction(ParserRuleContext context, Object value) {
-            super(context);
-            this.value = requireNonNull(value);
+            var.stores.add(this);
+            value.addUse(this);
         }
     }
 
     private static final class MergeInstruction extends Instruction {
-        final Instruction first, second;
+        final Operand first, second;
 
-        MergeInstruction(ParserRuleContext context, Instruction first, Instruction second) {
+        MergeInstruction(ParserRuleContext context, Operand first, Operand second) {
             super(context);
+
             this.first = requireNonNull(first);
             this.second = requireNonNull(second);
+
+            first.addUse(this);
+            second.addUse(this);
         }
     }
 
     private static final class GotoInstruction extends Instruction {
+        // May not be immediately known, so this has to be special-cased
         BasicBlock target;
 
         GotoInstruction(ParserRuleContext context) {
             super(context);
+        }
+
+        @Override boolean isTerminator() {
+            return true;
+        }
+
+        void linkTarget(BasicBlock resolvedTarget) {
+            target = resolvedTarget;
+            block.addSuccessor(resolvedTarget);
         }
     }
 
@@ -560,85 +639,132 @@ public class CraterChunkCompiler {
             super(context);
             this.target = requireNonNull(target);
         }
+
+        @Override void visitBranchTargets(Consumer<BasicBlock> visitor) {
+            visitor.accept(target);
+        }
+
+        @Override boolean isTerminator() {
+            return true;
+        }
     }
 
     private static final class WhileConditionInstruction extends Instruction {
-        final Instruction condition;
+        final Operand condition;
         final BasicBlock exitBlock;
 
-        WhileConditionInstruction(ParserRuleContext context, Instruction condition, BasicBlock exitBlock) {
+        WhileConditionInstruction(ParserRuleContext context, Operand condition, BasicBlock exitBlock) {
             super(context);
+
             this.condition = requireNonNull(condition);
             this.exitBlock = requireNonNull(exitBlock);
+
+            condition.addUse(this);
+        }
+
+        @Override void visitBranchTargets(Consumer<BasicBlock> visitor) {
+            visitor.accept(exitBlock);
         }
     }
 
     private static final class RepeatConditionInstruction extends Instruction {
-        final Instruction condition;
+        final Operand condition;
         final BasicBlock loopBlock;
 
-        RepeatConditionInstruction(ParserRuleContext context, Instruction condition, BasicBlock loopBlock) {
+        RepeatConditionInstruction(ParserRuleContext context, Operand condition, BasicBlock loopBlock) {
             super(context);
+
             this.condition = requireNonNull(condition);
             this.loopBlock = requireNonNull(loopBlock);
+
+            condition.addUse(this);
+        }
+
+        @Override void visitBranchTargets(Consumer<BasicBlock> visitor) {
+            visitor.accept(loopBlock);
         }
     }
 
     private static final class IfConditionInstruction extends Instruction {
-        final Instruction condition;
+        final Operand condition;
         final BasicBlock alternateBlock;
 
-        IfConditionInstruction(ParserRuleContext context, Instruction condition, BasicBlock alternateBlock) {
+        IfConditionInstruction(ParserRuleContext context, Operand condition, BasicBlock alternateBlock) {
             super(context);
+
             this.condition = requireNonNull(condition);
             this.alternateBlock = requireNonNull(alternateBlock);
+
+            condition.addUse(this);
+        }
+
+        @Override void visitBranchTargets(Consumer<BasicBlock> visitor) {
+            visitor.accept(alternateBlock);
         }
     }
 
     private static final class NewindexInstruction extends Instruction {
-        final Instruction receiver;
-        final Instruction key;
-        final Instruction value;
+        final Operand receiver;
+        final Operand key;
+        final Operand value;
 
-        NewindexInstruction(ParserRuleContext context, Instruction receiver, Instruction key, Instruction value) {
+        NewindexInstruction(ParserRuleContext context, Operand receiver, Operand key, Operand value) {
             super(context);
+
             this.receiver = requireNonNull(receiver);
             this.key = requireNonNull(key);
             this.value = requireNonNull(value);
+
+            receiver.addUse(this);
+            key.addUse(this);
+            value.addUse(this);
         }
     }
 
     private static abstract sealed class CallInstruction extends Instruction {
-        final Instruction callee;
-        final List<Instruction> arguments;
+        final Operand callee;
+        final List<Operand> arguments;
 
-        CallInstruction(ParserRuleContext context, Instruction callee, List<Instruction> arguments) {
+        CallInstruction(ParserRuleContext context, Operand callee, List<Operand> arguments) {
             super(context);
+
             this.callee = requireNonNull(callee);
             this.arguments = requireNonNull(arguments);
+
+            callee.addUse(this);
+            for (var argument : arguments) {
+                argument.addUse(this);
+            }
         }
     }
 
     private static final class NonTailCallInstruction extends CallInstruction {
-        NonTailCallInstruction(ParserRuleContext context, Instruction callee, List<Instruction> arguments) {
+        NonTailCallInstruction(ParserRuleContext context, Instruction callee, List<Operand> arguments) {
             super(context, callee, arguments);
         }
     }
 
     private static final class TailCallInstruction extends CallInstruction {
-        TailCallInstruction(ParserRuleContext context, Instruction callee, List<Instruction> arguments) {
+        TailCallInstruction(ParserRuleContext context, Instruction callee, List<Operand> arguments) {
             super(context, callee, arguments);
+        }
+
+        @Override boolean isTerminator() {
+            return true;
         }
     }
 
     private static final class UnopInstruction extends Instruction {
         final Op op;
-        final Instruction operand;
+        final Operand operand;
 
-        UnopInstruction(ParserRuleContext context, Op op, Instruction operand) {
+        UnopInstruction(ParserRuleContext context, Op op, Operand operand) {
             super(context);
+
             this.op = requireNonNull(op);
             this.operand = requireNonNull(operand);
+
+            operand.addUse(this);
         }
 
         private enum Op {
@@ -651,14 +777,18 @@ public class CraterChunkCompiler {
 
     private static final class BinopInstruction extends Instruction {
         final Op op;
-        final Instruction lhs;
-        final Instruction rhs;
+        final Operand lhs;
+        final Operand rhs;
 
         BinopInstruction(ParserRuleContext context, Op op, Instruction lhs, Instruction rhs) {
             super(context);
+
             this.op = requireNonNull(op);
             this.lhs = requireNonNull(lhs);
             this.rhs = requireNonNull(rhs);
+
+            lhs.addUse(this);
+            rhs.addUse(this);
         }
 
         private enum Op {
