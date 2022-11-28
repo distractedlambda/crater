@@ -165,6 +165,18 @@ public class CraterChunkCompiler {
             return block;
         }
 
+        private void pushBlockScope() {
+            currentBlockScope = new BlockScope(currentBlockScope);
+        }
+
+        private void popBlockScope() {
+            for (var unresolved : currentBlockScope.unresolvedGotos.getValues()) {
+                throw createParseException(unresolved.get(0), "No matching label found");
+            }
+
+            currentBlockScope = currentBlockScope.parentScope;
+        }
+
         private Operand process(ExpressionContext context) {
             if (context instanceof LiteralExpressionContext ctx) {
                 return process(ctx);
@@ -256,9 +268,6 @@ public class CraterChunkCompiler {
         }
 
         private void process(BlockContext context) {
-            var scope = new BlockScope(currentBlockScope);
-            currentBlockScope = scope;
-
             for (var statement : context.statements) {
                 process(statement);
             }
@@ -266,12 +275,6 @@ public class CraterChunkCompiler {
             if (context.ret != null) {
                 process(context.ret);
             }
-
-            for (var unresolved : scope.unresolvedGotos.getValues()) {
-                throw createParseException(unresolved.get(0), "No matching label found");
-            }
-
-            currentBlockScope = scope.parentScope;
         }
 
         private void process(ReturnStatementContext context) {
@@ -388,7 +391,9 @@ public class CraterChunkCompiler {
         }
 
         private void process(BlockStatementContext context) {
+            pushBlockScope();
             process(context.body);
+            popBlockScope();
         }
 
         private void process(WhileStatementContext context) {
@@ -397,9 +402,11 @@ public class CraterChunkCompiler {
 
             append(new WhileConditionInstruction(context.condition, process(context.condition), exitBlock));
 
+            pushBlockScope();
             loopExits.push(exitBlock);
             process(context.body);
             loopExits.pop();
+            popBlockScope();
 
             append(new JumpInstruction(context, loopBlock));
 
@@ -410,11 +417,12 @@ public class CraterChunkCompiler {
             var loopBlock = addBasicBlock(new BasicBlock());
             var exitBlock = new BasicBlock();
 
+            pushBlockScope();
             loopExits.push(exitBlock);
             process(context.body);
             loopExits.pop();
-
             append(new RepeatConditionInstruction(context.condition, process(context.condition), loopBlock));
+            popBlockScope();
 
             addBasicBlock(exitBlock);
         }
@@ -424,15 +432,23 @@ public class CraterChunkCompiler {
 
             for (var i = 0; i < context.conditions.size(); i++) {
                 var alternateBlock = new BasicBlock();
+
                 var conditionContext = context.conditions.get(i);
                 append(new IfConditionInstruction(conditionContext, process(conditionContext), alternateBlock));
+
+                pushBlockScope();
                 process(context.consequents.get(i));
+                popBlockScope();
+
                 append(new JumpInstruction(context, endBlock));
+
                 addBasicBlock(alternateBlock);
             }
 
             if (context.alternate != null) {
+                pushBlockScope();
                 process(context.alternate);
+                popBlockScope();
             }
 
             addBasicBlock(endBlock);
