@@ -1,18 +1,17 @@
 package org.craterlang.language.runtime;
 
 import com.oracle.truffle.api.dsl.GenerateNodeFactory;
-import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.NodeFactory;
 import com.oracle.truffle.api.interop.TruffleObject;
 import org.craterlang.language.CraterNode;
 
 public final class CraterBuiltinFunction implements TruffleObject {
-    private final CraterString name;
+    private final CraterStrings name;
     private final NodeFactory<ExecutorNode> nodeFactory;
     private final NodeFactory<ExecutorNode> tailNodeFactory;
 
     public CraterBuiltinFunction(
-        CraterString name,
+        CraterStrings name,
         NodeFactory<ExecutorNode> nodeFactory,
         NodeFactory<ExecutorNode> tailNodeFactory
     ) {
@@ -21,11 +20,11 @@ public final class CraterBuiltinFunction implements TruffleObject {
         this.tailNodeFactory = tailNodeFactory;
     }
 
-    public CraterBuiltinFunction(CraterString name, NodeFactory<ExecutorNode> nodeFactory) {
+    public CraterBuiltinFunction(CraterStrings name, NodeFactory<ExecutorNode> nodeFactory) {
         this(name, nodeFactory, nodeFactory);
     }
 
-    public CraterString getName() {
+    public CraterStrings getName() {
         return name;
     }
 

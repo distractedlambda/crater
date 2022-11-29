@@ -1,12 +1,12 @@
 package org.craterlang.language;
 
-import org.craterlang.language.runtime.CraterString;
+import org.craterlang.language.runtime.CraterStrings;
 
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 
 public final class CraterInternedStringTable {
-    private final ReferenceQueue<CraterString> queue = new ReferenceQueue<>();
+    private final ReferenceQueue<CraterStrings> queue = new ReferenceQueue<>();
     private Entry[] table = new Entry[16];
     private int overestimatedLoad;
 
@@ -56,7 +56,7 @@ public final class CraterInternedStringTable {
         table = newTable;
     }
 
-    public CraterString findExisting(CraterString string) {
+    public CraterStrings findExisting(CraterStrings string) {
         var hashCode = string.hashCode();
         var tableIndex = hashCode & (table.length - 1);
 
@@ -72,7 +72,7 @@ public final class CraterInternedStringTable {
         return null;
     }
 
-    public void insertAssumingNotPresent(CraterString string) {
+    public void insertAssumingNotPresent(CraterStrings string) {
         prune();
 
         if (overestimatedLoad * LOAD_FACTOR_DENOMINATOR >= table.length * LOAD_FACTOR_NUMERATOR) {
@@ -87,11 +87,11 @@ public final class CraterInternedStringTable {
         overestimatedLoad++;
     }
 
-    private static final class Entry extends WeakReference<CraterString> {
+    private static final class Entry extends WeakReference<CraterStrings> {
         private final int valueHashCode;
         private Entry next;
 
-        private Entry(CraterString element, int valueHashCode, ReferenceQueue<CraterString> queue) {
+        private Entry(CraterStrings element, int valueHashCode, ReferenceQueue<CraterStrings> queue) {
             super(element, queue);
             this.valueHashCode = valueHashCode;
         }

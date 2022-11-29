@@ -10,8 +10,7 @@ import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.object.Shape;
 import org.craterlang.language.runtime.CraterClosure;
 import org.craterlang.language.runtime.CraterNil;
-import org.craterlang.language.runtime.CraterString;
-import org.craterlang.language.runtime.CraterTable;
+import org.craterlang.language.runtime.CraterStrings;
 
 @TruffleLanguage.Registration(id = "crater", name = "Crater", contextPolicy = TruffleLanguage.ContextPolicy.SHARED)
 public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context> {
@@ -32,41 +31,41 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
 
     private final CraterInternedStringTable globalInternedStringTable = new CraterInternedStringTable();
 
-    private final CraterString nilString = getInternedString("nil");
-    private final CraterString trueString = getInternedString("true");
-    private final CraterString falseString = getInternedString("false");
+    private final CraterStrings nilString = getInternedString("nil");
+    private final CraterStrings trueString = getInternedString("true");
+    private final CraterStrings falseString = getInternedString("false");
 
-    private final CraterString addMetamethodKey = getInternedString("__add");
-    private final CraterString subMetamethodKey = getInternedString("__sub");
-    private final CraterString mulMetamethodKey = getInternedString("__mul");
-    private final CraterString divMetamethodKey = getInternedString("__div");
-    private final CraterString modMetamethodKey = getInternedString("__mod");
-    private final CraterString powMetamethodKey = getInternedString("__pow");
-    private final CraterString unmMetamethodKey = getInternedString("__unm");
-    private final CraterString idivMetamethodKey = getInternedString("__idiv");
-    private final CraterString bandMetamethodKey = getInternedString("__band");
-    private final CraterString borMetamethodKey = getInternedString("__bor");
-    private final CraterString bxorMetamethodKey = getInternedString("__bxor");
-    private final CraterString bnotMetamethodKey = getInternedString("__bnot");
-    private final CraterString shlMetamethodKey = getInternedString("__shl");
-    private final CraterString shrMetamethodKey = getInternedString("__shr");
-    private final CraterString concatMetamethodKey = getInternedString("__concat");
-    private final CraterString lenMetamethodKey = getInternedString("__len");
-    private final CraterString eqMetamethodKey = getInternedString("__eq");
-    private final CraterString ltMetamethodKey = getInternedString("__lt");
-    private final CraterString leMetamethodKey = getInternedString("__le");
-    private final CraterString indexMetamethodKey = getInternedString("__index");
-    private final CraterString newindexMetamethodKey = getInternedString("__newindex");
-    private final CraterString callMetamethodKey = getInternedString("__call");
-    private final CraterString gcMetamethodKey = getInternedString("__gc");
-    private final CraterString closeMetamethodKey = getInternedString("__close");
-    private final CraterString modeMetavalueKey = getInternedString("__mode");
-    private final CraterString tostringMetamethodKey = getInternedString("__tostring");
-    private final CraterString nameMetavalueKey = getInternedString("__name");
+    private final CraterStrings addMetamethodKey = getInternedString("__add");
+    private final CraterStrings subMetamethodKey = getInternedString("__sub");
+    private final CraterStrings mulMetamethodKey = getInternedString("__mul");
+    private final CraterStrings divMetamethodKey = getInternedString("__div");
+    private final CraterStrings modMetamethodKey = getInternedString("__mod");
+    private final CraterStrings powMetamethodKey = getInternedString("__pow");
+    private final CraterStrings unmMetamethodKey = getInternedString("__unm");
+    private final CraterStrings idivMetamethodKey = getInternedString("__idiv");
+    private final CraterStrings bandMetamethodKey = getInternedString("__band");
+    private final CraterStrings borMetamethodKey = getInternedString("__bor");
+    private final CraterStrings bxorMetamethodKey = getInternedString("__bxor");
+    private final CraterStrings bnotMetamethodKey = getInternedString("__bnot");
+    private final CraterStrings shlMetamethodKey = getInternedString("__shl");
+    private final CraterStrings shrMetamethodKey = getInternedString("__shr");
+    private final CraterStrings concatMetamethodKey = getInternedString("__concat");
+    private final CraterStrings lenMetamethodKey = getInternedString("__len");
+    private final CraterStrings eqMetamethodKey = getInternedString("__eq");
+    private final CraterStrings ltMetamethodKey = getInternedString("__lt");
+    private final CraterStrings leMetamethodKey = getInternedString("__le");
+    private final CraterStrings indexMetamethodKey = getInternedString("__index");
+    private final CraterStrings newindexMetamethodKey = getInternedString("__newindex");
+    private final CraterStrings callMetamethodKey = getInternedString("__call");
+    private final CraterStrings gcMetamethodKey = getInternedString("__gc");
+    private final CraterStrings closeMetamethodKey = getInternedString("__close");
+    private final CraterStrings modeMetavalueKey = getInternedString("__mode");
+    private final CraterStrings tostringMetamethodKey = getInternedString("__tostring");
+    private final CraterStrings nameMetavalueKey = getInternedString("__name");
 
-    private final CraterString weakKeyModeString = getInternedString("k");
-    private final CraterString weakValueModeString = getInternedString("v");
-    private final CraterString weakKeyAndValueModeString = getInternedString("kv");
+    private final CraterStrings weakKeyModeString = getInternedString("k");
+    private final CraterStrings weakValueModeString = getInternedString("v");
+    private final CraterStrings weakKeyAndValueModeString = getInternedString("kv");
 
     private final Assumption noContextOverridesNilMetatable = Truffle.getRuntime().createAssumption(
         "no context overrides the nil metatable"
@@ -88,12 +87,6 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
     private final Object defaultStringMetatable = CraterNil.getInstance();
 
     private final Assumption singleContextAssumption = Truffle.getRuntime().createAssumption();
-
-    private final Shape rootTableShape = Shape.newBuilder()
-        .propertyAssumptions(true)
-        .singleContextAssumption(singleContextAssumption)
-        .layout(CraterTable.class)
-        .build();
 
     private final Shape rootClosureShape = Shape.newBuilder()
         .propertyAssumptions(true)
@@ -197,20 +190,16 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
         }
     }
 
-    public Shape getRootTableShape() {
-        return rootTableShape;
-    }
-
     public Shape getRootClosureShape() {
         return rootClosureShape;
     }
 
     @TruffleBoundary
-    public CraterString getInternedString(String string) {
-        return getInternedString(CraterString.fromJavaString(string));
+    public CraterStrings getInternedString(String string) {
+        return getInternedString(CraterStrings.fromJavaString(string));
     }
 
-    public CraterString getInternedString(CraterString string) {
+    public CraterStrings getInternedString(CraterStrings string) {
         if (isMultiContext) {
             assert threadLocalInternedStringTables != null;
             return getMultiContextInternedString(string, globalInternedStringTable, threadLocalInternedStringTables);
@@ -221,8 +210,8 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
     }
 
     @TruffleBoundary
-    private static CraterString getSingleContextInternedString(
-        CraterString string,
+    private static CraterStrings getSingleContextInternedString(
+        CraterStrings string,
         CraterInternedStringTable globalTable
     ) {
         var interned = globalTable.findExisting(string);
@@ -236,8 +225,8 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
     }
 
     @TruffleBoundary
-    private static CraterString getMultiContextInternedString(
-        CraterString string,
+    private static CraterStrings getMultiContextInternedString(
+        CraterStrings string,
         CraterInternedStringTable globalTable,
         ThreadLocal<CraterInternedStringTable> localTables
     ) {
@@ -260,135 +249,135 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
         return interned;
     }
 
-    public CraterString getNilString() {
+    public CraterStrings getNilString() {
         return nilString;
     }
 
-    public CraterString getTrueString() {
+    public CraterStrings getTrueString() {
         return trueString;
     }
 
-    public CraterString getFalseString() {
+    public CraterStrings getFalseString() {
         return falseString;
     }
 
-    public CraterString getAddMetamethodKey() {
+    public CraterStrings getAddMetamethodKey() {
         return addMetamethodKey;
     }
 
-    public CraterString getSubMetamethodKey() {
+    public CraterStrings getSubMetamethodKey() {
         return subMetamethodKey;
     }
 
-    public CraterString getMulMetamethodKey() {
+    public CraterStrings getMulMetamethodKey() {
         return mulMetamethodKey;
     }
 
-    public CraterString getDivMetamethodKey() {
+    public CraterStrings getDivMetamethodKey() {
         return divMetamethodKey;
     }
 
-    public CraterString getModMetamethodKey() {
+    public CraterStrings getModMetamethodKey() {
         return modMetamethodKey;
     }
 
-    public CraterString getPowMetamethodKey() {
+    public CraterStrings getPowMetamethodKey() {
         return powMetamethodKey;
     }
 
-    public CraterString getUnmMetamethodKey() {
+    public CraterStrings getUnmMetamethodKey() {
         return unmMetamethodKey;
     }
 
-    public CraterString getIdivMetamethodKey() {
+    public CraterStrings getIdivMetamethodKey() {
         return idivMetamethodKey;
     }
 
-    public CraterString getBandMetamethodKey() {
+    public CraterStrings getBandMetamethodKey() {
         return bandMetamethodKey;
     }
 
-    public CraterString getBorMetamethodKey() {
+    public CraterStrings getBorMetamethodKey() {
         return borMetamethodKey;
     }
 
-    public CraterString getBxorMetamethodKey() {
+    public CraterStrings getBxorMetamethodKey() {
         return bxorMetamethodKey;
     }
 
-    public CraterString getBnotMetamethodKey() {
+    public CraterStrings getBnotMetamethodKey() {
         return bnotMetamethodKey;
     }
 
-    public CraterString getShlMetamethodKey() {
+    public CraterStrings getShlMetamethodKey() {
         return shlMetamethodKey;
     }
 
-    public CraterString getShrMetamethodKey() {
+    public CraterStrings getShrMetamethodKey() {
         return shrMetamethodKey;
     }
 
-    public CraterString getConcatMetamethodKey() {
+    public CraterStrings getConcatMetamethodKey() {
         return concatMetamethodKey;
     }
 
-    public CraterString getLenMetamethodKey() {
+    public CraterStrings getLenMetamethodKey() {
         return lenMetamethodKey;
     }
 
-    public CraterString getEqMetamethodKey() {
+    public CraterStrings getEqMetamethodKey() {
         return eqMetamethodKey;
     }
 
-    public CraterString getLtMetamethodKey() {
+    public CraterStrings getLtMetamethodKey() {
         return ltMetamethodKey;
     }
 
-    public CraterString getLeMetamethodKey() {
+    public CraterStrings getLeMetamethodKey() {
         return leMetamethodKey;
     }
 
-    public CraterString getIndexMetamethodKey() {
+    public CraterStrings getIndexMetamethodKey() {
         return indexMetamethodKey;
     }
 
-    public CraterString getNewindexMetamethodKey() {
+    public CraterStrings getNewindexMetamethodKey() {
         return newindexMetamethodKey;
     }
 
-    public CraterString getCallMetamethodKey() {
+    public CraterStrings getCallMetamethodKey() {
         return callMetamethodKey;
     }
 
-    public CraterString getGcMetamethodKey() {
+    public CraterStrings getGcMetamethodKey() {
         return gcMetamethodKey;
     }
 
-    public CraterString getCloseMetamethodKey() {
+    public CraterStrings getCloseMetamethodKey() {
         return closeMetamethodKey;
     }
 
-    public CraterString getModeMetavalueKey() {
+    public CraterStrings getModeMetavalueKey() {
         return modeMetavalueKey;
     }
 
-    public CraterString getTostringMetamethodKey() {
+    public CraterStrings getTostringMetamethodKey() {
         return tostringMetamethodKey;
     }
 
-    public CraterString getNameMetavalueKey() {
+    public CraterStrings getNameMetavalueKey() {
         return nameMetavalueKey;
     }
 
-    public CraterString getWeakKeyModeString() {
+    public CraterStrings getWeakKeyModeString() {
         return weakKeyModeString;
     }
 
-    public CraterString getWeakValueModeString() {
+    public CraterStrings getWeakValueModeString() {
         return weakValueModeString;
     }
 
-    public CraterString getWeakKeyAndValueModeString() {
+    public CraterStrings getWeakKeyAndValueModeString() {
         return weakKeyAndValueModeString;
     }
 }
