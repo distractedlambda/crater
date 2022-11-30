@@ -5,16 +5,15 @@ import com.oracle.truffle.api.dsl.TypeCheck;
 import com.oracle.truffle.api.dsl.TypeSystem;
 import org.craterlang.language.runtime.CraterClosure;
 import org.craterlang.language.runtime.CraterNil;
-import org.craterlang.language.runtime.CraterStrings;
 import org.craterlang.language.runtime.CraterTable;
 
 @TypeSystem({
     boolean.class,
     long.class,
     double.class,
+    byte[].class,
     CraterClosure.class,
     CraterNil.class,
-    CraterStrings.class,
     CraterTable.class,
 })
 public abstract class CraterTypeSystem {

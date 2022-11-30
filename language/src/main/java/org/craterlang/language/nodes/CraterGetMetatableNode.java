@@ -6,7 +6,6 @@ import com.oracle.truffle.api.dsl.Specialization;
 import org.craterlang.language.CraterNode;
 import org.craterlang.language.runtime.CraterClosure;
 import org.craterlang.language.runtime.CraterNil;
-import org.craterlang.language.runtime.CraterStrings;
 import org.craterlang.language.runtime.CraterTable;
 
 @GenerateUncached
@@ -38,7 +37,7 @@ public abstract class CraterGetMetatableNode extends CraterNode {
     }
 
     @Specialization
-    protected Object doString(CraterStrings subject) {
+    protected Object doString(byte[] subject) {
         return getLanguage().getStringMetatable(getContext());
     }
 

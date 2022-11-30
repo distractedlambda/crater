@@ -1,20 +1,12 @@
 package org.craterlang.language.runtime;
 
-import com.oracle.truffle.api.dsl.Cached;
-import com.oracle.truffle.api.dsl.Cached.Shared;
 import com.oracle.truffle.api.dsl.Fallback;
 import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.interop.TruffleObject;
-import com.oracle.truffle.api.profiles.BranchProfile;
-import com.oracle.truffle.api.profiles.ConditionProfile;
 import org.craterlang.language.CraterNode;
-import org.craterlang.language.nodes.SwitchProfileNode;
-
-import java.security.Guard;
 
 import static com.oracle.truffle.api.CompilerDirectives.castExact;
-import static com.oracle.truffle.api.CompilerDirectives.shouldNotReachHere;
 
 public final class CraterTable implements TruffleObject {
     private int header = 0;
