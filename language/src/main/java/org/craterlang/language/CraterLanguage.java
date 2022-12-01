@@ -90,12 +90,6 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
 
     private final Assumption singleContextAssumption = Truffle.getRuntime().createAssumption();
 
-    private final Shape rootClosureShape = Shape.newBuilder()
-        .propertyAssumptions(true)
-        .singleContextAssumption(singleContextAssumption)
-        .layout(CraterClosure.class)
-        .build();
-
     @CompilationFinal
     private boolean isMultiContext = false;
 

@@ -42,8 +42,8 @@ public abstract class CraterGetMetatableNode extends CraterNode {
     }
 
     @Specialization
-    protected Object doClosure(CraterClosure subject, @Cached CraterClosure.GetMetatableNode innerNode) {
-        return innerNode.execute(subject);
+    protected Object doClosure(CraterClosure subject) {
+        return subject.getMetatable();
     }
 
     @Specialization
