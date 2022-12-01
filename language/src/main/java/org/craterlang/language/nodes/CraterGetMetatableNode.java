@@ -47,7 +47,7 @@ public abstract class CraterGetMetatableNode extends CraterNode {
     }
 
     @Specialization
-    protected Object doTable(CraterTable subject) {
-        throw new UnsupportedOperationException("TODO");
+    protected Object doTable(CraterTable subject, @Cached CraterTable.GetMetatableNode getMetatableNode) {
+        return getMetatableNode.execute(subject);
     }
 }
