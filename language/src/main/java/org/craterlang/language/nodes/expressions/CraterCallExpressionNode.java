@@ -15,9 +15,10 @@ public abstract class CraterCallExpressionNode extends CraterExpressionNode {
         CraterClosure callee,
         Object[] arguments,
         @Cached CraterPrependValueNode prependCalleeNode,
+        @Cached CraterClosure.GetCallTargetNode getCallTargetNode,
         @Cached CraterDispatchedCallNode dispatchedCallNode
     ) {
         var combinedArguments = prependCalleeNode.execute(callee, arguments);
-        return dispatchedCallNode.execute(callee.getCallTarget(), combinedArguments);
+        return dispatchedCallNode.execute(getCallTargetNode.execute(callee), combinedArguments);
     }
 }

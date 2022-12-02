@@ -7,7 +7,7 @@ import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.ImportStatic;
 import com.oracle.truffle.api.dsl.Specialization;
 import org.craterlang.language.CraterNode;
-import org.craterlang.language.nodes.SwitchProfileNode;
+import org.craterlang.language.nodes.CraterSwitchProfileNode;
 import sun.misc.Unsafe;
 
 import java.lang.ref.ReferenceQueue;
@@ -347,7 +347,7 @@ public final class CraterStrings {
         protected boolean doExecute(
             byte[] lhs,
             byte[] rhs,
-            @Cached SwitchProfileNode profileNode
+            @Cached CraterSwitchProfileNode profileNode
         ) {
             if (lhs == rhs) {
                 profileNode.execute(0x01);

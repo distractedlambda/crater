@@ -10,8 +10,8 @@ import java.lang.invoke.VarHandle;
 
 import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreterAndInvalidate;
 
-public abstract class SwitchProfileNode extends CraterNode {
-    private static final class Impl extends SwitchProfileNode {
+public abstract class CraterSwitchProfileNode extends CraterNode {
+    private static final class Impl extends CraterSwitchProfileNode {
         @CompilationFinal private long valueMask;
 
         @Override public void execute(int value) {
@@ -37,7 +37,7 @@ public abstract class SwitchProfileNode extends CraterNode {
     }
 
     @DenyReplace
-    private static final class Uncached extends SwitchProfileNode {
+    private static final class Uncached extends CraterSwitchProfileNode {
         @Override public void execute(int value) {}
 
         @Override public NodeCost getCost() {
@@ -53,11 +53,11 @@ public abstract class SwitchProfileNode extends CraterNode {
 
     public abstract void execute(int value);
 
-    public static SwitchProfileNode create() {
+    public static CraterSwitchProfileNode create() {
         return new Impl();
     }
 
-    public static SwitchProfileNode getUncached() {
+    public static CraterSwitchProfileNode getUncached() {
         return Uncached.INSTANCE;
     }
 }

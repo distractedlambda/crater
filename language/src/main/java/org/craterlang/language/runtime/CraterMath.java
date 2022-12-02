@@ -2,17 +2,13 @@ package org.craterlang.language.runtime;
 
 import com.oracle.truffle.api.nodes.UnexpectedResultException;
 
-import static java.lang.Double.doubleToRawLongBits;
-import static java.lang.Long.numberOfTrailingZeros;
-import static java.lang.Math.getExponent;
-
 public final class CraterMath {
     private CraterMath() {}
 
     public static boolean hasExactLongValue(double number) {
         return number >= -0x1.0p63
             && number < 0x1.0p63
-            && getExponent(number) + numberOfTrailingZeros(doubleToRawLongBits(number) << 12) >= 64;
+            && (double) (long) number == number;
     }
 
     public static long expectExactLongValue(double number) throws UnexpectedResultException {
