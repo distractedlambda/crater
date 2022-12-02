@@ -23,6 +23,14 @@ import static com.oracle.truffle.api.ExactMath.multiplyHighUnsigned;
 public final class CraterStrings {
     private CraterStrings() {}
 
+    public static int getLength(byte[] string) {
+        return string.length - HEADER_SIZE;
+    }
+
+    public static byte getByte(byte[] string, int index) {
+        return string[HEADER_SIZE + index];
+    }
+
     @TruffleBoundary
     public static boolean equals(byte[] lhs, byte[] rhs) {
         if (lhs == rhs) {

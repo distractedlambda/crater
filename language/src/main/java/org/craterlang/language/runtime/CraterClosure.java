@@ -5,7 +5,6 @@ import com.oracle.truffle.api.CompilerDirectives.CompilationFinal;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.GenerateUncached;
-import com.oracle.truffle.api.dsl.ReportPolymorphism.Megamorphic;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.interop.TruffleObject;
 import com.oracle.truffle.api.staticobject.StaticProperty;
@@ -210,7 +209,6 @@ public abstract class CraterClosure implements TruffleObject {
             return castExact(cachedShape.captureProperties[index].getObject(closure), CraterUpvalue.class);
         }
 
-        @Megamorphic
         @Specialization(replaces = "doConstantShape")
         CraterUpvalue doDynamic(CraterClosure closure) {
             return closure.getUpvalueUncached(index);

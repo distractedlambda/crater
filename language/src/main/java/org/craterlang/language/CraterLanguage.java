@@ -7,8 +7,6 @@ import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.TruffleLanguage;
 import com.oracle.truffle.api.nodes.Node;
-import com.oracle.truffle.api.object.Shape;
-import org.craterlang.language.runtime.CraterClosure;
 import org.craterlang.language.runtime.CraterNil;
 import org.craterlang.language.runtime.CraterStrings;
 
@@ -68,6 +66,8 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
     private final byte[] weakKeyModeString = getInternedString("k");
     private final byte[] weakValueModeString = getInternedString("v");
     private final byte[] weakKeyAndValueModeString = getInternedString("kv");
+
+    private final byte[] poundSignString = getInternedString("#");
 
     private final Assumption noContextOverridesNilMetatable = Truffle.getRuntime().createAssumption(
         "no context overrides the nil metatable"
@@ -331,5 +331,9 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
 
     public byte[] getWeakKeyAndValueModeString() {
         return weakKeyAndValueModeString;
+    }
+
+    public byte[] getPoundSignString() {
+        return poundSignString;
     }
 }
