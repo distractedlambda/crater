@@ -3,7 +3,6 @@ package org.craterlang.language.runtime;
 import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.Fallback;
 import com.oracle.truffle.api.dsl.GenerateUncached;
-import com.oracle.truffle.api.dsl.ImportStatic;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.interop.TruffleObject;
 import com.oracle.truffle.api.nodes.UnexpectedResultException;
@@ -207,11 +206,6 @@ public final class CraterTable implements TruffleObject {
         @Specialization
         protected int doDouble(double key) {
             return hash64(doubleToRawLongBits(key));
-        }
-
-        @Specialization
-        protected int doString(byte[] key, @Cached CraterStrings.HashCodeNode hashCodeNode) {
-            return hashCodeNode.execute(key);
         }
 
         @Fallback

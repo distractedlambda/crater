@@ -14,12 +14,12 @@ public abstract class CraterGetMetatableNode extends CraterNode {
 
     @Specialization
     protected Object doNil(CraterNil subject) {
-        return getLanguage().getNilMetatable(getContext());
+        return getContext().getNilMetatable();
     }
 
     @Specialization
     protected Object doBoolean(boolean subject) {
-        return getLanguage().getBooleanMetatable(getContext());
+        return getContext().getBooleanMetatable();
     }
 
     @Specialization
@@ -33,12 +33,12 @@ public abstract class CraterGetMetatableNode extends CraterNode {
     }
 
     private Object doNumber() {
-        return getLanguage().getNumberMetatable(getContext());
+        return getContext().getNumberMetatable();
     }
 
     @Specialization
     protected Object doString(byte[] subject) {
-        return getLanguage().getStringMetatable(getContext());
+        return getContext().getStringMetatable();
     }
 
     @Specialization

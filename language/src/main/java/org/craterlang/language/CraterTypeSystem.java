@@ -3,6 +3,7 @@ package org.craterlang.language;
 import com.oracle.truffle.api.dsl.TypeCast;
 import com.oracle.truffle.api.dsl.TypeCheck;
 import com.oracle.truffle.api.dsl.TypeSystem;
+import com.oracle.truffle.api.strings.TruffleString;
 import org.craterlang.language.runtime.CraterClosure;
 import org.craterlang.language.runtime.CraterNil;
 import org.craterlang.language.runtime.CraterTable;
@@ -13,10 +14,10 @@ import static com.oracle.truffle.api.CompilerDirectives.castExact;
     boolean.class,
     long.class,
     double.class,
-    byte[].class,
     CraterClosure.class,
     CraterNil.class,
     CraterTable.class,
+    TruffleString.class,
     Object[].class,
 })
 public abstract class CraterTypeSystem {

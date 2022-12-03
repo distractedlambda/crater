@@ -1,106 +1,106 @@
 package org.craterlang.language;
 
-import com.oracle.truffle.api.Assumption;
 import com.oracle.truffle.api.CallTarget;
-import com.oracle.truffle.api.CompilerDirectives.CompilationFinal;
-import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
-import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.TruffleLanguage;
 import com.oracle.truffle.api.nodes.Node;
+import com.oracle.truffle.api.strings.TruffleString;
+import com.oracle.truffle.api.utilities.AssumedValue;
 import org.craterlang.language.runtime.CraterNil;
-import org.craterlang.language.runtime.CraterStrings;
 
-import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ConcurrentHashMap;
 
 @TruffleLanguage.Registration(id = "crater", name = "Crater", contextPolicy = TruffleLanguage.ContextPolicy.SHARED)
 public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context> {
-    public final class Context {
+    public static final class Context {
         private static final ContextReference<Context> REFERENCE = ContextReference.create(CraterLanguage.class);
 
         public static Context get(Node node) {
             return REFERENCE.get(node);
         }
 
-        private Object nilMetatable = CraterNil.getInstance();
-        private Object booleanMetatable = CraterNil.getInstance();
-        private Object numberMetatable = CraterNil.getInstance();
-        private Object stringMetatable = defaultStringMetatable;
+        private final AssumedValue<Object> nilMetatable = new AssumedValue<>(CraterNil.getInstance());
+        private final AssumedValue<Object> booleanMetatable = new AssumedValue<>(CraterNil.getInstance());
+        private final AssumedValue<Object> numberMetatable = new AssumedValue<>(CraterNil.getInstance());
+        private final AssumedValue<Object> stringMetatable = new AssumedValue<>(CraterNil.getInstance());
+
+        public Object getNilMetatable() {
+            return nilMetatable.get();
+        }
+
+        public void setNilMetatable(Object table) {
+            assert table != null;
+            nilMetatable.set(table);
+        }
+
+        public Object getBooleanMetatable() {
+            return booleanMetatable.get();
+        }
+
+        public void setBooleanMetatable(Object table) {
+            assert table != null;
+            booleanMetatable.set(table);
+        }
+
+        public Object getNumberMetatable() {
+            return numberMetatable.get();
+        }
+
+        public void setNumberMetatable(Object table) {
+            assert table != null;
+            numberMetatable.set(table);
+        }
+
+        public Object getStringMetatable() {
+            return stringMetatable.get();
+        }
+
+        public void setStringMetatable(Object table) {
+            assert table != null;
+            stringMetatable.set(table);
+        }
     }
 
     private static final LanguageReference<CraterLanguage> REFERENCE = LanguageReference.create(CraterLanguage.class);
 
-    private final CraterStrings.InternedSet globalInternedStrings = new CraterStrings.InternedSet();
+    private final ConcurrentHashMap<TruffleString, TruffleString> literalStrings = new ConcurrentHashMap<>();
 
-    private final byte[] nilString = getInternedString("nil");
-    private final byte[] trueString = getInternedString("true");
-    private final byte[] falseString = getInternedString("false");
+    private final TruffleString nilString = getLiteralString("nil");
+    private final TruffleString trueString = getLiteralString("true");
+    private final TruffleString falseString = getLiteralString("false");
 
-    private final byte[] addMetamethodKey = getInternedString("__add");
-    private final byte[] subMetamethodKey = getInternedString("__sub");
-    private final byte[] mulMetamethodKey = getInternedString("__mul");
-    private final byte[] divMetamethodKey = getInternedString("__div");
-    private final byte[] modMetamethodKey = getInternedString("__mod");
-    private final byte[] powMetamethodKey = getInternedString("__pow");
-    private final byte[] unmMetamethodKey = getInternedString("__unm");
-    private final byte[] idivMetamethodKey = getInternedString("__idiv");
-    private final byte[] bandMetamethodKey = getInternedString("__band");
-    private final byte[] borMetamethodKey = getInternedString("__bor");
-    private final byte[] bxorMetamethodKey = getInternedString("__bxor");
-    private final byte[] bnotMetamethodKey = getInternedString("__bnot");
-    private final byte[] shlMetamethodKey = getInternedString("__shl");
-    private final byte[] shrMetamethodKey = getInternedString("__shr");
-    private final byte[] concatMetamethodKey = getInternedString("__concat");
-    private final byte[] lenMetamethodKey = getInternedString("__len");
-    private final byte[] eqMetamethodKey = getInternedString("__eq");
-    private final byte[] ltMetamethodKey = getInternedString("__lt");
-    private final byte[] leMetamethodKey = getInternedString("__le");
-    private final byte[] indexMetamethodKey = getInternedString("__index");
-    private final byte[] newindexMetamethodKey = getInternedString("__newindex");
-    private final byte[] callMetamethodKey = getInternedString("__call");
-    private final byte[] gcMetamethodKey = getInternedString("__gc");
-    private final byte[] closeMetamethodKey = getInternedString("__close");
-    private final byte[] modeMetavalueKey = getInternedString("__mode");
-    private final byte[] tostringMetamethodKey = getInternedString("__tostring");
-    private final byte[] nameMetavalueKey = getInternedString("__name");
+    private final TruffleString addMetamethodKey = getLiteralString("__add");
+    private final TruffleString subMetamethodKey = getLiteralString("__sub");
+    private final TruffleString mulMetamethodKey = getLiteralString("__mul");
+    private final TruffleString divMetamethodKey = getLiteralString("__div");
+    private final TruffleString modMetamethodKey = getLiteralString("__mod");
+    private final TruffleString powMetamethodKey = getLiteralString("__pow");
+    private final TruffleString unmMetamethodKey = getLiteralString("__unm");
+    private final TruffleString idivMetamethodKey = getLiteralString("__idiv");
+    private final TruffleString bandMetamethodKey = getLiteralString("__band");
+    private final TruffleString borMetamethodKey = getLiteralString("__bor");
+    private final TruffleString bxorMetamethodKey = getLiteralString("__bxor");
+    private final TruffleString bnotMetamethodKey = getLiteralString("__bnot");
+    private final TruffleString shlMetamethodKey = getLiteralString("__shl");
+    private final TruffleString shrMetamethodKey = getLiteralString("__shr");
+    private final TruffleString concatMetamethodKey = getLiteralString("__concat");
+    private final TruffleString lenMetamethodKey = getLiteralString("__len");
+    private final TruffleString eqMetamethodKey = getLiteralString("__eq");
+    private final TruffleString ltMetamethodKey = getLiteralString("__lt");
+    private final TruffleString leMetamethodKey = getLiteralString("__le");
+    private final TruffleString indexMetamethodKey = getLiteralString("__index");
+    private final TruffleString newindexMetamethodKey = getLiteralString("__newindex");
+    private final TruffleString callMetamethodKey = getLiteralString("__call");
+    private final TruffleString gcMetamethodKey = getLiteralString("__gc");
+    private final TruffleString closeMetamethodKey = getLiteralString("__close");
+    private final TruffleString modeMetavalueKey = getLiteralString("__mode");
+    private final TruffleString tostringMetamethodKey = getLiteralString("__tostring");
+    private final TruffleString nameMetavalueKey = getLiteralString("__name");
 
-    private final byte[] weakKeyModeString = getInternedString("k");
-    private final byte[] weakValueModeString = getInternedString("v");
-    private final byte[] weakKeyAndValueModeString = getInternedString("kv");
+    private final TruffleString weakKeyModeString = getLiteralString("k");
+    private final TruffleString weakValueModeString = getLiteralString("v");
+    private final TruffleString weakKeyAndValueModeString = getLiteralString("kv");
 
-    private final byte[] poundSignString = getInternedString("#");
-
-    private final Assumption noContextOverridesNilMetatable = Truffle.getRuntime().createAssumption(
-        "no context overrides the nil metatable"
-    );
-
-    private final Assumption noContextOverridesBooleanMetatable = Truffle.getRuntime().createAssumption(
-        "no context overrides the boolean metatable"
-    );
-
-    private final Assumption noContextOverridesNumberMetatable = Truffle.getRuntime().createAssumption(
-        "no context overrides the number metatable"
-    );
-
-    private final Assumption noContextOverridesStringMetatable = Truffle.getRuntime().createAssumption(
-        "no context overrides the string metatable"
-    );
-
-    // FIXME: replace this with the actual string metatable
-    private final Object defaultStringMetatable = CraterNil.getInstance();
-
-    private final Assumption singleContextAssumption = Truffle.getRuntime().createAssumption();
-
-    @CompilationFinal
-    private boolean isMultiContext = false;
-
-    @CompilationFinal
-    private ThreadLocal<CraterStrings.InternedSet> threadLocalInternedStrings;
-
-    @Override protected void initializeMultipleContexts() {
-        isMultiContext = true;
-        threadLocalInternedStrings = ThreadLocal.withInitial(CraterStrings.InternedSet::new);
-        singleContextAssumption.invalidate(); // FIXME: invalidate this only when the second context is created?
-    }
+    private final TruffleString poundSignString = getLiteralString("#");
 
     @Override protected Context createContext(Env env) {
         return new Context();
@@ -114,226 +114,154 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
         return REFERENCE.get(node);
     }
 
-    public boolean isSingleContext() {
-        return !isMultiContext;
-    }
+    public TruffleString getLiteralString(String javaString) {
+        var string = TruffleString
+            .fromJavaStringUncached(javaString, TruffleString.Encoding.UTF_8)
+            .forceEncodingUncached(TruffleString.Encoding.UTF_8, TruffleString.Encoding.BYTES);
 
-    public boolean isMultiContext() {
-        return isMultiContext;
-    }
+        var existingString = literalStrings.putIfAbsent(string, string);
 
-    public Object getNilMetatable(Context context) {
-        if (noContextOverridesNilMetatable.isValid()) {
-            return CraterNil.getInstance();
+        if (existingString != null) {
+            return existingString;
         }
         else {
-            return context.nilMetatable;
+            return string;
         }
     }
 
-    public void setNilMetatable(Context context, Object value) {
-        context.nilMetatable = value;
-        if (value != CraterNil.getInstance()) {
-            noContextOverridesNilMetatable.invalidate();
-        }
-    }
-
-    public Object getBooleanMetatable(Context context) {
-        if (noContextOverridesBooleanMetatable.isValid()) {
-            return CraterNil.getInstance();
-        }
-        else {
-            return context.booleanMetatable;
-        }
-    }
-
-    public void setBooleanMetatable(Context context, Object value) {
-        context.booleanMetatable = value;
-        if (value != CraterNil.getInstance()) {
-            noContextOverridesBooleanMetatable.invalidate();
-        }
-    }
-
-    public Object getNumberMetatable(Context context) {
-        if (noContextOverridesNumberMetatable.isValid()) {
-            return CraterNil.getInstance();
-        }
-        else {
-            return context.numberMetatable;
-        }
-    }
-
-    public void setNumberMetatable(Context context, Object value) {
-        context.numberMetatable = value;
-        if (value != CraterNil.getInstance()) {
-            noContextOverridesNumberMetatable.invalidate();
-        }
-    }
-
-    public Object getStringMetatable(Context context) {
-        if (noContextOverridesStringMetatable.isValid()) {
-            return defaultStringMetatable;
-        }
-        else {
-            return context.stringMetatable;
-        }
-    }
-
-    public void setStringMetatable(Context context, Object value) {
-        context.stringMetatable = value;
-        if (value != defaultStringMetatable) {
-            noContextOverridesStringMetatable.invalidate();
-        }
-    }
-
-    @TruffleBoundary
-    public byte[] getInternedString(String javaString) {
-        return getInternedStringFromUtf8(javaString.getBytes(StandardCharsets.UTF_8));
-    }
-
-    public byte[] getInternedStringFromUtf8(byte[] utf8) {
-        if (isMultiContext) {
-            assert threadLocalInternedStrings != null;
-            return CraterStrings.internedFromUtf8(utf8, threadLocalInternedStrings, globalInternedStrings);
-        }
-        else {
-            return CraterStrings.internedFromUtf8(utf8, globalInternedStrings);
-        }
-    }
-
-    public byte[] getNilString() {
+    public TruffleString getNilString() {
         return nilString;
     }
 
-    public byte[] getTrueString() {
+    public TruffleString getTrueString() {
         return trueString;
     }
 
-    public byte[] getFalseString() {
+    public TruffleString getFalseString() {
         return falseString;
     }
 
-    public byte[] getAddMetamethodKey() {
+    public TruffleString getAddMetamethodKey() {
         return addMetamethodKey;
     }
 
-    public byte[] getSubMetamethodKey() {
+    public TruffleString getSubMetamethodKey() {
         return subMetamethodKey;
     }
 
-    public byte[] getMulMetamethodKey() {
+    public TruffleString getMulMetamethodKey() {
         return mulMetamethodKey;
     }
 
-    public byte[] getDivMetamethodKey() {
+    public TruffleString getDivMetamethodKey() {
         return divMetamethodKey;
     }
 
-    public byte[] getModMetamethodKey() {
+    public TruffleString getModMetamethodKey() {
         return modMetamethodKey;
     }
 
-    public byte[] getPowMetamethodKey() {
+    public TruffleString getPowMetamethodKey() {
         return powMetamethodKey;
     }
 
-    public byte[] getUnmMetamethodKey() {
+    public TruffleString getUnmMetamethodKey() {
         return unmMetamethodKey;
     }
 
-    public byte[] getIdivMetamethodKey() {
+    public TruffleString getIdivMetamethodKey() {
         return idivMetamethodKey;
     }
 
-    public byte[] getBandMetamethodKey() {
+    public TruffleString getBandMetamethodKey() {
         return bandMetamethodKey;
     }
 
-    public byte[] getBorMetamethodKey() {
+    public TruffleString getBorMetamethodKey() {
         return borMetamethodKey;
     }
 
-    public byte[] getBxorMetamethodKey() {
+    public TruffleString getBxorMetamethodKey() {
         return bxorMetamethodKey;
     }
 
-    public byte[] getBnotMetamethodKey() {
+    public TruffleString getBnotMetamethodKey() {
         return bnotMetamethodKey;
     }
 
-    public byte[] getShlMetamethodKey() {
+    public TruffleString getShlMetamethodKey() {
         return shlMetamethodKey;
     }
 
-    public byte[] getShrMetamethodKey() {
+    public TruffleString getShrMetamethodKey() {
         return shrMetamethodKey;
     }
 
-    public byte[] getConcatMetamethodKey() {
+    public TruffleString getConcatMetamethodKey() {
         return concatMetamethodKey;
     }
 
-    public byte[] getLenMetamethodKey() {
+    public TruffleString getLenMetamethodKey() {
         return lenMetamethodKey;
     }
 
-    public byte[] getEqMetamethodKey() {
+    public TruffleString getEqMetamethodKey() {
         return eqMetamethodKey;
     }
 
-    public byte[] getLtMetamethodKey() {
+    public TruffleString getLtMetamethodKey() {
         return ltMetamethodKey;
     }
 
-    public byte[] getLeMetamethodKey() {
+    public TruffleString getLeMetamethodKey() {
         return leMetamethodKey;
     }
 
-    public byte[] getIndexMetamethodKey() {
+    public TruffleString getIndexMetamethodKey() {
         return indexMetamethodKey;
     }
 
-    public byte[] getNewindexMetamethodKey() {
+    public TruffleString getNewindexMetamethodKey() {
         return newindexMetamethodKey;
     }
 
-    public byte[] getCallMetamethodKey() {
+    public TruffleString getCallMetamethodKey() {
         return callMetamethodKey;
     }
 
-    public byte[] getGcMetamethodKey() {
+    public TruffleString getGcMetamethodKey() {
         return gcMetamethodKey;
     }
 
-    public byte[] getCloseMetamethodKey() {
+    public TruffleString getCloseMetamethodKey() {
         return closeMetamethodKey;
     }
 
-    public byte[] getModeMetavalueKey() {
+    public TruffleString getModeMetavalueKey() {
         return modeMetavalueKey;
     }
 
-    public byte[] getTostringMetamethodKey() {
+    public TruffleString getTostringMetamethodKey() {
         return tostringMetamethodKey;
     }
 
-    public byte[] getNameMetavalueKey() {
+    public TruffleString getNameMetavalueKey() {
         return nameMetavalueKey;
     }
 
-    public byte[] getWeakKeyModeString() {
+    public TruffleString getWeakKeyModeString() {
         return weakKeyModeString;
     }
 
-    public byte[] getWeakValueModeString() {
+    public TruffleString getWeakValueModeString() {
         return weakValueModeString;
     }
 
-    public byte[] getWeakKeyAndValueModeString() {
+    public TruffleString getWeakKeyAndValueModeString() {
         return weakKeyAndValueModeString;
     }
 
-    public byte[] getPoundSignString() {
+    public TruffleString getPoundSignString() {
         return poundSignString;
     }
 }

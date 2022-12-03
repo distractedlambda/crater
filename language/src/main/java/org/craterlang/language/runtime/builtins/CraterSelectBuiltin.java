@@ -6,10 +6,11 @@ import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.profiles.IntValueProfile;
 import com.oracle.truffle.api.profiles.LongValueProfile;
+import com.oracle.truffle.api.strings.TruffleString;
 import org.craterlang.language.CraterNode;
+import org.craterlang.language.nodes.CraterForceIntoIntegerNode;
 import org.craterlang.language.runtime.CraterBuiltin;
 import org.craterlang.language.runtime.CraterMath;
-import org.craterlang.language.runtime.CraterStrings;
 import org.craterlang.language.runtime.CraterValues;
 
 import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
@@ -46,14 +47,9 @@ public final class CraterSelectBuiltin extends CraterBuiltin {
     static abstract class IndexDispatchNode extends CraterNode {
         abstract Object execute(Object[] arguments, Object index);
 
-        @Specialization(guards = "index == getLanguage().getPoundSignString()")
-        Object doIdenticalString(Object[] arguments, byte[] index) {
-            return arguments.length - 1;
-        }
-
-        @Specialization(replaces = "doIdenticalString")
-        Object doDynamicString(Object[] arguments, byte[] index) {
-            if (CraterStrings.getLength(index) < 1 || CraterStrings.getByte(index, 0) != '#') {
+        @Specialization
+        Object doString(Object[] arguments, TruffleString index, @Cached TruffleString.EqualNode stringEqualNode) {
+            if (!stringEqualNode.execute(index, getLanguage().getPoundSignString(), TruffleString.Encoding.BYTES)) {
                 transferToInterpreter();
                 throw error("");
             }
@@ -65,11 +61,11 @@ public final class CraterSelectBuiltin extends CraterBuiltin {
         Object doNumeric(
             Object[] arguments,
             Object index,
-            @Cached ConvertNumericIndexNode convertNumericIndexNode,
+            @Cached CraterForceIntoIntegerNode forceIntoIntegerNode,
             @Cached LongValueProfile indexValueProfile,
             @Cached NumericIndexDispatchNode numericIndexDispatchNode
         ) {
-            var longIndex = indexValueProfile.profile(convertNumericIndexNode.execute(index));
+            var longIndex = indexValueProfile.profile(forceIntoIntegerNode.execute(index));
             return numericIndexDispatchNode.execute(arguments, longIndex);
         }
     }
