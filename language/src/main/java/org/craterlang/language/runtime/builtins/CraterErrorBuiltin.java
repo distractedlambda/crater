@@ -11,15 +11,14 @@ import com.oracle.truffle.api.nodes.EncapsulatingNodeReference;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.profiles.BranchProfile;
 import com.oracle.truffle.api.profiles.ConditionProfile;
-import com.oracle.truffle.api.profiles.IntValueProfile;
 import com.oracle.truffle.api.source.SourceSection;
 import com.oracle.truffle.api.strings.TruffleString;
 import com.oracle.truffle.api.strings.TruffleStringBuilder;
 import org.craterlang.language.CraterLanguage;
 import org.craterlang.language.CraterNode;
 import org.craterlang.language.nodes.CraterForceIntoIntegerNode;
+import org.craterlang.language.nodes.values.CraterExtractValueNode;
 import org.craterlang.language.runtime.CraterBuiltin;
-import org.craterlang.language.runtime.CraterNil;
 
 import static org.craterlang.language.CraterTypeSystem.isNil;
 
@@ -28,7 +27,7 @@ public final class CraterErrorBuiltin extends CraterBuiltin {
         return CraterErrorBuiltinFactory.ImplNodeGen.create();
     }
 
-    @Override public Object callUncached(Object[] arguments) {
+    @Override public Object callUncached(Object arguments) {
         return CraterErrorBuiltinFactory.ImplNodeGen.getUncached().execute(arguments);
     }
 
@@ -36,23 +35,14 @@ public final class CraterErrorBuiltin extends CraterBuiltin {
     static abstract class ImplNode extends BodyNode {
         @Specialization
         Object doExecute(
-            Object[] arguments,
-            @Cached IntValueProfile argumentsLengthProfile,
+            Object arguments,
+            @Cached CraterExtractValueNode extractArgumentNode,
             @Cached ConditionProfile levelIsNilProfile,
             @Cached CraterForceIntoIntegerNode forceLevelIntoIntegerNode,
             @Cached AddLocationToMessageNode addLocationToMessageNode
         ) {
-            Object message = CraterNil.getInstance();
-            Object level = CraterNil.getInstance();
-
-            var argumentsLength = argumentsLengthProfile.profile(arguments.length);
-
-            if (argumentsLength > 0) {
-                message = arguments[0];
-                if (argumentsLength > 1) {
-                    level = arguments[1];
-                }
-            }
+            Object message = extractArgumentNode.execute(arguments, 0);
+            Object level = extractArgumentNode.execute(arguments, 1);
 
             long levelInteger;
 

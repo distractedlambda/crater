@@ -6,6 +6,7 @@ import com.oracle.truffle.api.dsl.TypeSystem;
 import com.oracle.truffle.api.strings.TruffleString;
 import org.craterlang.language.runtime.CraterClosure;
 import org.craterlang.language.runtime.CraterNil;
+import org.craterlang.language.runtime.CraterNoValues;
 import org.craterlang.language.runtime.CraterTable;
 import org.craterlang.language.runtime.CraterMultipleValues;
 
@@ -15,6 +16,7 @@ import org.craterlang.language.runtime.CraterMultipleValues;
     double.class,
     CraterClosure.class,
     CraterMultipleValues.class,
+    CraterNoValues.class,
     CraterNil.class,
     CraterTable.class,
     TruffleString.class,
@@ -29,5 +31,16 @@ public abstract class CraterTypeSystem {
     public static CraterNil asNil(Object value) {
         assert isNil(value);
         return CraterNil.getInstance();
+    }
+
+    @TypeCheck(CraterNoValues.class)
+    public static boolean isNoValues(Object value) {
+        return value == CraterNoValues.getInstance();
+    }
+
+    @TypeCast(CraterNoValues.class)
+    public static CraterNoValues asNoValues(Object value) {
+        assert isNoValues(value);
+        return CraterNoValues.getInstance();
     }
 }

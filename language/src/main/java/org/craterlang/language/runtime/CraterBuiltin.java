@@ -21,13 +21,13 @@ public abstract class CraterBuiltin implements TruffleObject {
         return createBodyNode();
     }
 
-    public abstract Object callUncached(Object[] arguments);
+    public abstract Object callUncached(Object arguments);
 
-    public Object tailCallUncached(Object[] arguments) {
+    public Object tailCallUncached(Object arguments) {
         return callUncached(arguments);
     }
 
     public abstract static class BodyNode extends CraterNode {
-        public abstract Object execute(Object[] arguments);
+        public abstract Object execute(Object arguments);
     }
 }

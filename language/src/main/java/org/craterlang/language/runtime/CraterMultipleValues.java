@@ -9,7 +9,7 @@ public final class CraterMultipleValues implements TruffleObject {
     @CompilationFinal(dimensions = 1) private final Object[] values;
 
     public CraterMultipleValues(Object... values) {
-        assert values.length != 1;
+        assert values.length > 1;
         this.values = values;
     }
 
