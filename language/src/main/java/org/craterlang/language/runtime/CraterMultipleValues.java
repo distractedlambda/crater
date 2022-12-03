@@ -21,6 +21,30 @@ public final class CraterMultipleValues implements TruffleObject {
         return values[index];
     }
 
+    public boolean isBoolean(int index) {
+        return values[index] instanceof Boolean;
+    }
+
+    public boolean getBoolean(int index) {
+        return (boolean) values[index];
+    }
+
+    public boolean isLong(int index) {
+        return values[index] instanceof Long;
+    }
+
+    public long getLong(int index) {
+        return (long) values[index];
+    }
+
+    public boolean isDouble(int index) {
+        return values[index] instanceof Double;
+    }
+
+    public double getDouble(int index) {
+        return (double) values[index];
+    }
+
     public static CraterMultipleValues getEmpty() {
         return EMPTY;
     }
