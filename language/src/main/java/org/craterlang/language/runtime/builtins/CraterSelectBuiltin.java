@@ -11,7 +11,7 @@ import org.craterlang.language.CraterNode;
 import org.craterlang.language.nodes.CraterForceIntoIntegerNode;
 import org.craterlang.language.runtime.CraterBuiltin;
 import org.craterlang.language.runtime.CraterMath;
-import org.craterlang.language.runtime.CraterValues;
+import org.craterlang.language.runtime.CraterMultipleValues;
 
 import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
 
@@ -101,8 +101,8 @@ public final class CraterSelectBuiltin extends CraterBuiltin {
         abstract Object execute(Object[] arguments, long index);
 
         @Specialization(guards = "index >= arguments.length")
-        Object[] doOverflowing(Object[] arguments, long index) {
-            return CraterValues.getEmpty();
+        CraterMultipleValues doOverflowing(Object[] arguments, long index) {
+            return CraterMultipleValues.getEmpty();
         }
 
         @Specialization(guards = "index < 0")

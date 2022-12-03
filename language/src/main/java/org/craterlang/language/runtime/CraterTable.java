@@ -8,10 +8,9 @@ import com.oracle.truffle.api.interop.TruffleObject;
 import com.oracle.truffle.api.nodes.UnexpectedResultException;
 import org.craterlang.language.CraterNode;
 
+import static com.oracle.truffle.api.CompilerDirectives.castExact;
 import static java.lang.Double.doubleToRawLongBits;
 import static java.lang.System.identityHashCode;
-import static org.craterlang.language.CraterTypeSystem.asObjectArray;
-import static org.craterlang.language.CraterTypeSystem.isObjectArray;
 
 public final class CraterTable implements TruffleObject {
     private int header = 0;
@@ -20,7 +19,7 @@ public final class CraterTable implements TruffleObject {
     private Object optimizedSequenceValues = null;
 
     boolean hasMap() {
-        return isObjectArray(metatableOrKeys);
+        return metatableOrKeys.getClass() == Object[].class;
     }
 
     boolean hasOptimizedSequence() {
@@ -36,7 +35,7 @@ public final class CraterTable implements TruffleObject {
     }
 
     public Object[] getKeys() {
-        return asObjectArray(metatableOrKeys);
+        return castExact(metatableOrKeys, Object[].class);
     }
 
     int getLength() {
