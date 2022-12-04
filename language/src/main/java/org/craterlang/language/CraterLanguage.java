@@ -1,11 +1,15 @@
 package org.craterlang.language;
 
+import com.oracle.truffle.api.Assumption;
 import com.oracle.truffle.api.CallTarget;
+import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.TruffleLanguage;
 import com.oracle.truffle.api.nodes.Node;
+import com.oracle.truffle.api.object.Shape;
 import com.oracle.truffle.api.strings.TruffleString;
 import com.oracle.truffle.api.utilities.AssumedValue;
 import org.craterlang.language.runtime.CraterNil;
+import org.craterlang.language.runtime.CraterTable;
 
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -62,6 +66,14 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
 
     private static final LanguageReference<CraterLanguage> REFERENCE = LanguageReference.create(CraterLanguage.class);
 
+    private final Assumption singleContextAssumption = Truffle.getRuntime().createAssumption("singleContext");
+
+    private final Shape rootTableShape = Shape.newBuilder()
+        .propertyAssumptions(true)
+        .singleContextAssumption(singleContextAssumption)
+        .layout(CraterTable.class)
+        .build();
+
     private final ConcurrentHashMap<TruffleString, TruffleString> literalStrings = new ConcurrentHashMap<>();
 
     private final TruffleString nilString = getLiteralString("nil");
@@ -100,10 +112,15 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
     private final TruffleString weakValueModeString = getLiteralString("v");
     private final TruffleString weakKeyAndValueModeString = getLiteralString("kv");
 
+    private final TruffleString nString = getLiteralString("n");
     private final TruffleString poundSignString = getLiteralString("#");
 
     @Override protected Context createContext(Env env) {
         return new Context();
+    }
+
+    @Override protected void initializeMultipleContexts() {
+        singleContextAssumption.invalidate("initializeMultipleContexts() called");
     }
 
     @Override protected CallTarget parse(ParsingRequest request) throws Exception {
@@ -112,6 +129,10 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
 
     public static CraterLanguage get(Node node) {
         return REFERENCE.get(node);
+    }
+
+    public CraterTable createTable() {
+        return new CraterTable(rootTableShape);
     }
 
     public TruffleString getLiteralString(String javaString) {
@@ -259,6 +280,10 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
 
     public TruffleString getWeakKeyAndValueModeString() {
         return weakKeyAndValueModeString;
+    }
+
+    public TruffleString getLowercaseLetterNString() {
+        return nString;
     }
 
     public TruffleString getPoundSignString() {

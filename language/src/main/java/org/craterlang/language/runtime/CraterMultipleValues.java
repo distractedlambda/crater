@@ -1,8 +1,12 @@
 package org.craterlang.language.runtime;
 
+import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.CompilerDirectives.CompilationFinal;
+import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.CompilerDirectives.ValueType;
 import com.oracle.truffle.api.interop.TruffleObject;
+
+import java.util.Arrays;
 
 @ValueType
 public final class CraterMultipleValues implements TruffleObject {
@@ -19,6 +23,11 @@ public final class CraterMultipleValues implements TruffleObject {
 
     public Object get(int index) {
         return values[index];
+    }
+
+    @TruffleBoundary(allowInlining = true)
+    public Object[] getCopyOfValues() {
+        return Arrays.copyOf(values, values.length, Object[].class);
     }
 
     public boolean isBoolean(int index) {

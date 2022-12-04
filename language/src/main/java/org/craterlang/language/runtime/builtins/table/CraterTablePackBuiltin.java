@@ -14,13 +14,13 @@ import org.craterlang.language.runtime.CraterMultipleValues;
 import org.craterlang.language.runtime.CraterNoValues;
 import org.craterlang.language.runtime.CraterTable;
 
-public final class CraterPackBuiltin extends CraterBuiltin {
+public final class CraterTablePackBuiltin extends CraterBuiltin {
     @Override public BodyNode createBodyNode() {
-        return CraterPackBuiltinFactory.ImplNodeGen.create();
+        return CraterTablePackBuiltinFactory.ImplNodeGen.create();
     }
 
     @Override public Object callUncached(Object arguments) {
-        return CraterPackBuiltinFactory.ImplNodeGen.getUncached().execute(arguments);
+        return CraterTablePackBuiltinFactory.ImplNodeGen.getUncached().execute(arguments);
     }
 
     @GenerateUncached

@@ -22,12 +22,24 @@ public final class CraterTable extends DynamicObject implements TruffleObject {
         super(shape);
     }
 
+    public void setOptimizedArray(Object storage, long length, DynamicObjectLibrary tables) {
+        tables.setShapeFlags(this, tables.getShapeFlags(this) | OPTIMIZED_ARRAY_FLAG);
+        tables.put(this, OPTIMIZED_ARRAY_STORAGE_KEY, storage);
+        tables.putLong(this, OPTIMIZED_ARRAY_LENGTH_KEY, length);
+    }
+
     boolean hasOptimizedArray(DynamicObjectLibrary tables) {
         return (tables.getShapeFlags(this) & OPTIMIZED_ARRAY_FLAG) != 0;
     }
 
     Object getOptimizedArrayStorage(DynamicObjectLibrary tables) {
-        return tables.getOrDefault(this, OPTIMIZED_ARRAY_STORAGE_KEY, null);
+        var storage = tables.getOrDefault(this, OPTIMIZED_ARRAY_STORAGE_KEY, null);
+
+        if (storage == null) {
+            throw shouldNotReachHere();
+        }
+
+        return storage;
     }
 
     long getOptimizedArrayLength(DynamicObjectLibrary tables) {
@@ -42,8 +54,8 @@ public final class CraterTable extends DynamicObject implements TruffleObject {
     private static final int OPTIMIZED_ARRAY_FLAG = 0x01;
 
     private static final HiddenKey LENGTH_KEY = new HiddenKey("length");
-    private static final HiddenKey OPTIMIZED_ARRAY_STORAGE_KEY = new HiddenKey("optimizedSequenceStorage");
-    private static final HiddenKey OPTIMIZED_ARRAY_LENGTH_KEY = new HiddenKey("optimizedSequenceLength");
+    private static final HiddenKey OPTIMIZED_ARRAY_STORAGE_KEY = new HiddenKey("optimizedArrayStorage");
+    private static final HiddenKey OPTIMIZED_ARRAY_LENGTH_KEY = new HiddenKey("optimizedArrayLength");
 
     @GenerateUncached
     public static abstract class GetMetatableNode extends CraterNode {
@@ -77,10 +89,11 @@ public final class CraterTable extends DynamicObject implements TruffleObject {
         @Specialization(limit = "3")
         long doExecute(CraterTable table, @CachedLibrary("table") DynamicObjectLibrary tables) {
             try {
-                return tables.getLongOrDefault(table, LENGTH_KEY, 0);
+                return tables.getLongOrDefault(table, LENGTH_KEY, null);
             }
             catch (UnexpectedResultException exception) {
-                throw shouldNotReachHere(exception);
+                // TODO
+                throw new UnsupportedOperationException("TODO");
             }
         }
     }
