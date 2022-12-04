@@ -62,7 +62,7 @@ public final class CraterTable extends DynamicObject implements TruffleObject {
         public abstract Object execute(CraterTable table);
 
         @Specialization(guards = "table.getShape() == cachedShape")
-        Object doConstantShape(CraterTable table, @Cached("table.getShape()") Shape cachedShape) {
+        Object doConstantShape(CraterTable table, @Cached(value = "table.getShape()", weak = true) Shape cachedShape) {
             return cachedShape.getDynamicType();
         }
 

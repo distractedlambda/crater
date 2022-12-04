@@ -161,13 +161,16 @@ public abstract class CraterClosure implements TruffleObject {
         @Specialization(guards = "closure == cachedClosure")
         CallTarget doConstantClosure(
             CraterClosure closure,
-            @Cached("closure") CraterClosure cachedClosure
+            @Cached(value = "closure", weak = true) CraterClosure cachedClosure
         ) {
             return cachedClosure.type.callTarget;
         }
 
         @Specialization(guards = "closure.getType() == cachedType", replaces = "doConstantClosure")
-        CallTarget doConstantType(CraterClosure closure, @Cached("closure.getType()") Type cachedType) {
+        CallTarget doConstantType(
+            CraterClosure closure,
+            @Cached(value = "closure.getType()", weak = true) Type cachedType
+        ) {
             return cachedType.callTarget;
         }
 
@@ -190,7 +193,7 @@ public abstract class CraterClosure implements TruffleObject {
         @Specialization(guards = "closure == cachedClosure")
         CraterUpvalue doConstantClosure(
             CraterClosure closure,
-            @Cached("closure") CraterClosure cachedClosure
+            @Cached(value = "closure", weak = true) CraterClosure cachedClosure
         ) {
             return castExact(cachedClosure.type.shape.captureProperties[index].getObject(this), CraterUpvalue.class);
         }
@@ -198,7 +201,7 @@ public abstract class CraterClosure implements TruffleObject {
         @Specialization(guards = "closure.getType() == cachedType", replaces = "doConstantClosure")
         CraterUpvalue doConstantType(
             CraterClosure closure,
-            @Cached("closure.getType()") Type cachedType
+            @Cached(value = "closure.getType()", weak = true) Type cachedType
         ) {
             return castExact(cachedType.shape.captureProperties[index].getObject(closure), CraterUpvalue.class);
         }
@@ -206,7 +209,7 @@ public abstract class CraterClosure implements TruffleObject {
         @Specialization(guards = "closure.getType().getShape() == cachedShape", replaces = "doConstantType")
         CraterUpvalue doConstantShape(
             CraterClosure closure,
-            @Cached("closure.getType().getShape()") Shape cachedShape
+            @Cached(value = "closure.getType().getShape()", weak = true) Shape cachedShape
         ) {
             return castExact(cachedShape.captureProperties[index].getObject(closure), CraterUpvalue.class);
         }
