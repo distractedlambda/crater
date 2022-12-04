@@ -26,6 +26,7 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
         private final AssumedValue<Object> booleanMetatable = new AssumedValue<>(CraterNil.getInstance());
         private final AssumedValue<Object> numberMetatable = new AssumedValue<>(CraterNil.getInstance());
         private final AssumedValue<Object> stringMetatable = new AssumedValue<>(CraterNil.getInstance());
+        private final AssumedValue<Object> functionMetatable = new AssumedValue<>(CraterNil.getInstance());
 
         public Object getNilMetatable() {
             return nilMetatable.get();
@@ -61,6 +62,15 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
         public void setStringMetatable(Object table) {
             assert table != null;
             stringMetatable.set(table);
+        }
+
+        public Object getFunctionMetatable() {
+            return functionMetatable.get();
+        }
+
+        public void setFunctionMetatable(Object table) {
+            assert table != null;
+            functionMetatable.set(table);
         }
     }
 

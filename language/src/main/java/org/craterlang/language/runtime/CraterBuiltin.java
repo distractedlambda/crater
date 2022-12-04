@@ -7,17 +7,6 @@ import com.oracle.truffle.api.interop.TruffleObject;
 import org.craterlang.language.CraterNode;
 
 public abstract class CraterBuiltin implements TruffleObject {
-    private Object metatable = CraterNil.getInstance();
-
-    public final Object getMetatable() {
-        return metatable;
-    }
-
-    public final void setMetatable(Object metatable) {
-        assert metatable != null;
-        this.metatable = metatable;
-    }
-
     public abstract BodyNode createBodyNode();
 
     public abstract Object invokeUncached(Object[] arguments);

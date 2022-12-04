@@ -21,7 +21,6 @@ import static com.oracle.truffle.api.CompilerDirectives.castExact;
 
 public abstract class CraterClosure implements TruffleObject {
     private final Type type;
-    private Object metatable = CraterNil.getInstance();
 
     public CraterClosure(Type type) {
         assert type != null;
@@ -30,15 +29,6 @@ public abstract class CraterClosure implements TruffleObject {
 
     public Type getType() {
         return type;
-    }
-
-    public Object getMetatable() {
-        return metatable;
-    }
-
-    public void setMetatable(Object metatable) {
-        assert metatable != null;
-        this.metatable = metatable;
     }
 
     @TruffleBoundary(allowInlining = true)
