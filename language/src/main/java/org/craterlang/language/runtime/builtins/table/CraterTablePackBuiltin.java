@@ -19,15 +19,14 @@ public final class CraterTablePackBuiltin extends CraterBuiltin {
         return CraterTablePackBuiltinFactory.ImplNodeGen.create();
     }
 
-    @Override public Object invokeUncached(Object continuationFrame, Object[] arguments) {
-        return CraterTablePackBuiltinFactory.ImplNodeGen.getUncached().execute(continuationFrame, arguments);
+    @Override public Object invokeUncached(Object[] arguments) {
+        return CraterTablePackBuiltinFactory.ImplNodeGen.getUncached().execute(arguments);
     }
 
     @GenerateUncached
     static abstract class ImplNode extends BodyNode {
         @Specialization
         CraterTable doExecute(
-            Object continuationFrame,
             Object[] arguments,
             @CachedLibrary(limit = "5") DynamicObjectLibrary tables,
             @Cached ImplWithLibraryNode implWithLibraryNode

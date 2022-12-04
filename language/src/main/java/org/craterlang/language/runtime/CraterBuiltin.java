@@ -20,30 +20,29 @@ public abstract class CraterBuiltin implements TruffleObject {
 
     public abstract BodyNode createBodyNode();
 
-    public abstract Object invokeUncached(Object continuationFrame, Object[] arguments);
+    public abstract Object invokeUncached(Object[] arguments);
 
     public static abstract class BodyNode extends CraterNode {
-        public abstract Object execute(Object continuationFrame, Object[] arguments);
+        public abstract Object execute(Object[] arguments);
     }
 
     @GenerateUncached
     public static abstract class InvokeNode extends CraterNode {
-        public abstract Object execute(CraterBuiltin builtin, Object continuationFrame, Object[] arguments);
+        public abstract Object execute(CraterBuiltin builtin, Object[] arguments);
 
         @Specialization(guards = "builtin == cachedBuiltin")
         Object doCached(
             CraterBuiltin builtin,
-            Object continuationFrame,
             Object[] arguments,
             @Cached("builtin") CraterBuiltin cachedBuiltin,
             @Cached("cachedBuiltin.createBodyNode()") BodyNode bodyNode
         ) {
-            return bodyNode.execute(continuationFrame, arguments);
+            return bodyNode.execute(arguments);
         }
 
         @Specialization(replaces = "doCached")
-        Object doUncached(CraterBuiltin builtin, Object continuationFrame, Object[] arguments) {
-            return builtin.invokeUncached(continuationFrame, arguments);
+        Object doUncached(CraterBuiltin builtin, Object[] arguments) {
+            return builtin.invokeUncached(arguments);
         }
     }
 }

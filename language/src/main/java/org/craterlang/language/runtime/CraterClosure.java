@@ -13,6 +13,7 @@ import com.oracle.truffle.api.staticobject.StaticShape;
 import org.craterlang.language.CraterLanguage;
 import org.craterlang.language.CraterNode;
 import org.craterlang.language.nodes.CraterDispatchedCallNode;
+import org.craterlang.language.nodes.values.CraterPrependValueNode;
 
 import java.util.ArrayList;
 
@@ -220,50 +221,19 @@ public abstract class CraterClosure implements TruffleObject {
 
     @GenerateUncached
     public static abstract class InvokeNode extends CraterNode {
-        public abstract Object execute(CraterClosure closure, Object continuationFrame, Object[] arguments);
+        public abstract Object execute(CraterClosure closure, Object[] arguments);
 
         @Specialization
         Object doExecute(
             CraterClosure callee,
-            Object continuationFrame,
             Object[] arguments,
             @Cached GetCallTargetNode getCallTargetNode,
-            @Cached MakeCallArgumentsNode makeCallArgumentsNode,
+            @Cached CraterPrependValueNode prependCalleeNode,
             @Cached CraterDispatchedCallNode dispatchedCallNode
         ) {
             var callTarget = getCallTargetNode.execute(callee);
-            var callArguments = makeCallArgumentsNode.execute(callee, continuationFrame, arguments);
+            var callArguments = prependCalleeNode.execute(callee, arguments);
             return dispatchedCallNode.execute(callTarget, callArguments);
-        }
-
-        @GenerateUncached
-        static abstract class MakeCallArgumentsNode extends CraterNode {
-            abstract Object[] execute(CraterClosure callee, Object continuationFrame, Object[] arguments);
-
-            @ExplodeLoop
-            @Specialization(guards = "arguments.length == cachedArgumentsLength", limit = "1")
-            Object[] doConstantLength(
-                CraterClosure callee,
-                Object continuationFrame,
-                Object[] arguments,
-                @Cached("arguments.length") int cachedArgumentsLength
-            ) {
-                var closureArguments = new Object[cachedArgumentsLength + 2];
-                closureArguments[0] = callee;
-                closureArguments[1] = continuationFrame;
-                for (var i = 0; i < cachedArgumentsLength; i++) closureArguments[i + 2] = arguments[i];
-                return closureArguments;
-            }
-
-            @TruffleBoundary
-            @Specialization(replaces = "doConstantLength")
-            Object[] doDynamicLength(CraterClosure callee, Object continuationFrame, Object[] arguments) {
-                var closureArguments = new Object[arguments.length + 2];
-                closureArguments[0] = callee;
-                closureArguments[1] = continuationFrame;
-                arraycopy(arguments, 0, closureArguments, 2, arguments.length);
-                return closureArguments;
-            }
         }
     }
 }

@@ -28,15 +28,14 @@ public final class CraterErrorBuiltin extends CraterBuiltin {
         return CraterErrorBuiltinFactory.ImplNodeGen.create();
     }
 
-    @Override public Object invokeUncached(Object continuationFrame, Object[] arguments) {
-        return CraterErrorBuiltinFactory.ImplNodeGen.getUncached().execute(continuationFrame, arguments);
+    @Override public Object invokeUncached(Object[] arguments) {
+        return CraterErrorBuiltinFactory.ImplNodeGen.getUncached().execute(arguments);
     }
 
     @GenerateUncached
     static abstract class ImplNode extends BodyNode {
         @Specialization
         Object doExecute(
-            Object continuationFrame,
             Object[] arguments,
             @Cached IntValueProfile argumentsLengthProfile,
             @Cached ConditionProfile levelIsNilProfile,
