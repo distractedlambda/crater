@@ -1,5 +1,8 @@
 package org.craterlang.language.runtime;
 
+import com.oracle.truffle.api.dsl.Cached;
+import com.oracle.truffle.api.dsl.GenerateUncached;
+import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.interop.TruffleObject;
 import org.craterlang.language.CraterNode;
 
@@ -17,17 +20,30 @@ public abstract class CraterBuiltin implements TruffleObject {
 
     public abstract BodyNode createBodyNode();
 
-    public BodyNode createTailBodyNode() {
-        return createBodyNode();
-    }
+    public abstract Object invokeUncached(Object continuationFrame, Object[] arguments);
 
-    public abstract Object callUncached(Object continuationFrame, Object[] arguments);
-
-    public Object tailCallUncached(Object continuationFrame, Object[] arguments) {
-        return callUncached(continuationFrame, arguments);
-    }
-
-    public abstract static class BodyNode extends CraterNode {
+    public static abstract class BodyNode extends CraterNode {
         public abstract Object execute(Object continuationFrame, Object[] arguments);
+    }
+
+    @GenerateUncached
+    public static abstract class InvokeNode extends CraterNode {
+        public abstract Object execute(CraterBuiltin builtin, Object continuationFrame, Object[] arguments);
+
+        @Specialization(guards = "builtin == cachedBuiltin")
+        Object doCached(
+            CraterBuiltin builtin,
+            Object continuationFrame,
+            Object[] arguments,
+            @Cached("builtin") CraterBuiltin cachedBuiltin,
+            @Cached("cachedBuiltin.createBodyNode()") BodyNode bodyNode
+        ) {
+            return bodyNode.execute(continuationFrame, arguments);
+        }
+
+        @Specialization(replaces = "doCached")
+        Object doUncached(CraterBuiltin builtin, Object continuationFrame, Object[] arguments) {
+            return builtin.invokeUncached(continuationFrame, arguments);
+        }
     }
 }

@@ -14,7 +14,7 @@ public final class CraterACosBuiltin extends CraterBuiltin {
         return CraterACosBuiltinFactory.ImplNodeGen.create();
     }
 
-    @Override public Object callUncached(Object continuationFrame, Object[] arguments) {
+    @Override public Object invokeUncached(Object continuationFrame, Object[] arguments) {
         return CraterACosBuiltinFactory.ImplNodeGen.getUncached().execute(continuationFrame, arguments);
     }
 

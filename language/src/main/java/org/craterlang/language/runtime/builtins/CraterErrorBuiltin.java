@@ -28,7 +28,7 @@ public final class CraterErrorBuiltin extends CraterBuiltin {
         return CraterErrorBuiltinFactory.ImplNodeGen.create();
     }
 
-    @Override public Object callUncached(Object continuationFrame, Object[] arguments) {
+    @Override public Object invokeUncached(Object continuationFrame, Object[] arguments) {
         return CraterErrorBuiltinFactory.ImplNodeGen.getUncached().execute(continuationFrame, arguments);
     }
 

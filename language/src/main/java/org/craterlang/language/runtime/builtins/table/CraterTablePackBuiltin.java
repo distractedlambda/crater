@@ -19,7 +19,7 @@ public final class CraterTablePackBuiltin extends CraterBuiltin {
         return CraterTablePackBuiltinFactory.ImplNodeGen.create();
     }
 
-    @Override public Object callUncached(Object continuationFrame, Object[] arguments) {
+    @Override public Object invokeUncached(Object continuationFrame, Object[] arguments) {
         return CraterTablePackBuiltinFactory.ImplNodeGen.getUncached().execute(continuationFrame, arguments);
     }
 
