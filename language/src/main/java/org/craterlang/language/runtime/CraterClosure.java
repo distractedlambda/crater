@@ -7,7 +7,6 @@ import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.interop.TruffleObject;
-import com.oracle.truffle.api.nodes.ExplodeLoop;
 import com.oracle.truffle.api.staticobject.StaticProperty;
 import com.oracle.truffle.api.staticobject.StaticShape;
 import org.craterlang.language.CraterLanguage;
@@ -19,7 +18,6 @@ import java.util.ArrayList;
 
 import static com.oracle.truffle.api.CompilerAsserts.neverPartOfCompilation;
 import static com.oracle.truffle.api.CompilerDirectives.castExact;
-import static java.lang.System.arraycopy;
 
 public abstract class CraterClosure implements TruffleObject {
     private final Type type;
