@@ -11,14 +11,15 @@ import com.oracle.truffle.api.nodes.EncapsulatingNodeReference;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.profiles.BranchProfile;
 import com.oracle.truffle.api.profiles.ConditionProfile;
+import com.oracle.truffle.api.profiles.IntValueProfile;
 import com.oracle.truffle.api.source.SourceSection;
 import com.oracle.truffle.api.strings.TruffleString;
 import com.oracle.truffle.api.strings.TruffleStringBuilder;
 import org.craterlang.language.CraterLanguage;
 import org.craterlang.language.CraterNode;
 import org.craterlang.language.nodes.CraterForceIntoIntegerNode;
-import org.craterlang.language.nodes.values.CraterExtractValueNode;
 import org.craterlang.language.runtime.CraterBuiltin;
+import org.craterlang.language.runtime.CraterNil;
 
 import static org.craterlang.language.CraterTypeSystem.isNil;
 
@@ -27,22 +28,24 @@ public final class CraterErrorBuiltin extends CraterBuiltin {
         return CraterErrorBuiltinFactory.ImplNodeGen.create();
     }
 
-    @Override public Object callUncached(Object arguments) {
-        return CraterErrorBuiltinFactory.ImplNodeGen.getUncached().execute(arguments);
+    @Override public Object callUncached(Object continuationFrame, Object[] arguments) {
+        return CraterErrorBuiltinFactory.ImplNodeGen.getUncached().execute(continuationFrame, arguments);
     }
 
     @GenerateUncached
     static abstract class ImplNode extends BodyNode {
         @Specialization
         Object doExecute(
-            Object arguments,
-            @Cached CraterExtractValueNode extractArgumentNode,
+            Object continuationFrame,
+            Object[] arguments,
+            @Cached IntValueProfile argumentsLengthProfile,
             @Cached ConditionProfile levelIsNilProfile,
             @Cached CraterForceIntoIntegerNode forceLevelIntoIntegerNode,
             @Cached AddLocationToMessageNode addLocationToMessageNode
         ) {
-            Object message = extractArgumentNode.execute(arguments, 0);
-            Object level = extractArgumentNode.execute(arguments, 1);
+            var argumentsLength = argumentsLengthProfile.profile(arguments.length);
+            var message = argumentsLength >= 1 ? arguments[0] : CraterNil.getInstance();
+            var level = argumentsLength >= 2 ? arguments[1] : CraterNil.getInstance();
 
             long levelInteger;
 

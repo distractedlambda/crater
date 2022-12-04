@@ -6,24 +6,31 @@ import com.oracle.truffle.api.dsl.Specialization;
 import org.craterlang.language.CraterNode;
 import org.craterlang.language.runtime.CraterBuiltin;
 
+import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
+
 public final class CraterAbsBuiltin extends CraterBuiltin {
     @Override public BodyNode createBodyNode() {
         return CraterAbsBuiltinFactory.ImplNodeGen.create();
     }
 
-    @Override public Object callUncached(Object arguments) {
-        return CraterAbsBuiltinFactory.ImplNodeGen.getUncached().execute(arguments);
+    @Override public Object callUncached(Object continuationFrame, Object[] arguments) {
+        return CraterAbsBuiltinFactory.ImplNodeGen.getUncached().execute(continuationFrame, arguments);
     }
 
     @GenerateUncached
     static abstract class ImplNode extends BodyNode {
         @Specialization
         Object doExecute(
-            Object arguments,
-            @Cached CraterExtractSingleNumericArgumentNode extractSingleNumericArgumentNode,
+            Object continuationFrame,
+            Object[] arguments,
             @Cached DispatchNode dispatchNode
         ) {
-            return dispatchNode.execute(extractSingleNumericArgumentNode.execute(arguments));
+            if (arguments.length == 0) {
+                transferToInterpreter();
+                throw error("");
+            }
+
+            return dispatchNode.execute(arguments[0]);
         }
     }
 

@@ -5,7 +5,7 @@ import com.oracle.truffle.api.dsl.Specialization;
 
 import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
 
-public abstract class CraterFloorDivNode extends CraterBinaryExpressionNode {
+public abstract class CraterFloorDivExpressionNode extends CraterBinaryExpressionNode {
     @Specialization
     protected long doLongLong(long lhs, long rhs) {
         try {

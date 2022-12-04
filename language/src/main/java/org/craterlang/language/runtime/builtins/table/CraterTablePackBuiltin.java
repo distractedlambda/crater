@@ -19,15 +19,16 @@ public final class CraterTablePackBuiltin extends CraterBuiltin {
         return CraterTablePackBuiltinFactory.ImplNodeGen.create();
     }
 
-    @Override public Object callUncached(Object arguments) {
-        return CraterTablePackBuiltinFactory.ImplNodeGen.getUncached().execute(arguments);
+    @Override public Object callUncached(Object continuationFrame, Object[] arguments) {
+        return CraterTablePackBuiltinFactory.ImplNodeGen.getUncached().execute(continuationFrame, arguments);
     }
 
     @GenerateUncached
     static abstract class ImplNode extends BodyNode {
         @Specialization
         CraterTable doExecute(
-            Object arguments,
+            Object continuationFrame,
+            Object[] arguments,
             @CachedLibrary(limit = "5") DynamicObjectLibrary tables,
             @Cached ImplWithLibraryNode implWithLibraryNode
         ) {
@@ -44,22 +45,7 @@ public final class CraterTablePackBuiltin extends CraterBuiltin {
             return createTable(0, tables);
         }
 
-        @Specialization
-        CraterTable doSingleBoolean(boolean argument, DynamicObjectLibrary tables) {
-            return createOptimizedArrayTable(new boolean[]{argument}, 1, tables);
-        }
-
-        @Specialization
-        CraterTable doSingleLong(long argument, DynamicObjectLibrary tables) {
-            return createOptimizedArrayTable(new long[]{argument}, 1, tables);
-        }
-
-        @Specialization
-        CraterTable doSingleDouble(double argument, DynamicObjectLibrary tables) {
-            return createOptimizedArrayTable(new double[]{argument}, 1, tables);
-        }
-
-        @Specialization(guards = {"arguments.length > 1", "arguments.length == cachedLength"})
+        @Specialization(guards = {"arguments.length != 0", "arguments.length == cachedLength"})
         CraterTable doConstantLength(
             Object[] arguments,
             DynamicObjectLibrary tables,
@@ -70,15 +56,10 @@ public final class CraterTablePackBuiltin extends CraterBuiltin {
             return createOptimizedArrayTable(storage, cachedLength, tables);
         }
 
-        @Specialization(guards = "arguments.length > 1", replaces = "doConstantLength")
+        @Specialization(guards = "arguments.length != 0", replaces = "doConstantLength")
         CraterTable doDynamicLength(Object[] arguments, DynamicObjectLibrary tables) {
             var storage = createDynamicStorage(arguments);
             return createOptimizedArrayTable(storage, arguments.length, tables);
-        }
-
-        @Fallback
-        CraterTable doSingleObject(Object argument, DynamicObjectLibrary tables) {
-            return createOptimizedArrayTable(new Object[]{argument}, 1, tables);
         }
 
         @TruffleBoundary

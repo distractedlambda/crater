@@ -11,58 +11,26 @@ import org.craterlang.language.nodes.CraterForceIntoIntegerNode;
 import org.craterlang.language.runtime.CraterBuiltin;
 
 import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
-import static org.craterlang.language.runtime.CraterMath.hasExactLongValue;
 
 public final class CraterSelectBuiltin extends CraterBuiltin {
     @Override public BodyNode createBodyNode() {
         return CraterSelectBuiltinFactory.ImplNodeGen.create();
     }
 
-    @Override public Object callUncached(Object arguments) {
-        return CraterSelectBuiltinFactory.ImplNodeGen.getUncached().execute(arguments);
+    @Override public Object callUncached(Object continuationFrame, Object[] arguments) {
+        return CraterSelectBuiltinFactory.ImplNodeGen.getUncached().execute(continuationFrame, arguments);
     }
 
     @GenerateUncached
     static abstract class ImplNode extends BodyNode {
-        @Specialization(guards = "arguments.length > 1")
-        Object doMultipleValues(Object[] arguments, @Cached IndexDispatchNode indexDispatchNode) {
+        @Specialization
+        Object doExecute(Object continuationFrame, Object[] arguments, @Cached IndexDispatchNode indexDispatchNode) {
+            if (arguments.length == 0) {
+                transferToInterpreter();
+                throw error("");
+            }
+
             return indexDispatchNode.execute(arguments, arguments[0]);
-        }
-
-        @Specialization
-        Object doSingleString(TruffleString argument, @Cached TruffleString.EqualNode stringEqualNode) {
-            if (!stringEqualNode.execute(argument, getLanguage().getPoundSignString(), TruffleString.Encoding.BYTES)) {
-                transferToInterpreter();
-                throw error("");
-            }
-
-            return 0;
-        }
-
-        @Specialization
-        Object[] doSingleLong(long argument) {
-            if (argument <= 0) {
-                transferToInterpreter();
-                throw error("");
-            }
-
-            return EMPTY_RESULTS;
-        }
-
-        @Specialization
-        Object[] doSingleDouble(double argument) {
-            if (!hasExactLongValue(argument) || (long) argument <= 0) {
-                transferToInterpreter();
-                throw error("");
-            }
-
-            return EMPTY_RESULTS;
-        }
-
-        @Fallback
-        Object doInvalid(Object arguments) {
-            transferToInterpreter();
-            throw error("");
         }
     }
 
