@@ -10,9 +10,9 @@ import com.oracle.truffle.api.nodes.ExplodeLoop;
 import com.oracle.truffle.api.object.DynamicObjectLibrary;
 import org.craterlang.language.CraterNode;
 import org.craterlang.language.runtime.CraterBuiltin;
-import org.craterlang.language.runtime.CraterMultipleValues;
-import org.craterlang.language.runtime.CraterNoValues;
 import org.craterlang.language.runtime.CraterTable;
+
+import java.util.Arrays;
 
 public final class CraterTablePackBuiltin extends CraterBuiltin {
     @Override public BodyNode createBodyNode() {
@@ -39,8 +39,8 @@ public final class CraterTablePackBuiltin extends CraterBuiltin {
     static abstract class ImplWithLibraryNode extends CraterNode {
         abstract CraterTable execute(Object arguments, DynamicObjectLibrary tables);
 
-        @Specialization
-        CraterTable doEmpty(CraterNoValues arguments, DynamicObjectLibrary tables) {
+        @Specialization(guards = "arguments.length == 0")
+        CraterTable doEmpty(Object[] arguments, DynamicObjectLibrary tables) {
             return createTable(0, tables);
         }
 
@@ -59,21 +59,21 @@ public final class CraterTablePackBuiltin extends CraterBuiltin {
             return createOptimizedArrayTable(new double[]{argument}, 1, tables);
         }
 
-        @Specialization(guards = "arguments.getLength() == cachedLength")
+        @Specialization(guards = {"arguments.length > 1", "arguments.length == cachedLength"})
         CraterTable doConstantLength(
-            CraterMultipleValues arguments,
+            Object[] arguments,
             DynamicObjectLibrary tables,
-            @Cached("arguments.getLength()") int cachedLength,
+            @Cached("arguments.length") int cachedLength,
             @Cached CreateConstantLengthStorageNode createConstantLengthStorageNode
         ) {
             var storage = createConstantLengthStorageNode.execute(arguments, cachedLength);
             return createOptimizedArrayTable(storage, cachedLength, tables);
         }
 
-        @Specialization(replaces = "doConstantLength")
-        CraterTable doDynamicLength(CraterMultipleValues arguments, DynamicObjectLibrary tables) {
+        @Specialization(guards = "arguments.length > 1", replaces = "doConstantLength")
+        CraterTable doDynamicLength(Object[] arguments, DynamicObjectLibrary tables) {
             var storage = createDynamicStorage(arguments);
-            return createOptimizedArrayTable(storage, arguments.getLength(), tables);
+            return createOptimizedArrayTable(storage, arguments.length, tables);
         }
 
         @Fallback
@@ -82,49 +82,49 @@ public final class CraterTablePackBuiltin extends CraterBuiltin {
         }
 
         @TruffleBoundary
-        private static Object createDynamicStorage(CraterMultipleValues arguments) {
+        private static Object createDynamicStorage(Object[] arguments) {
             primitive: for (;;) {
-                if (arguments.isBoolean(0)) {
-                    for (var i = 1; i < arguments.getLength(); i++) {
-                        if (!arguments.isBoolean(i)) {
+                if (arguments[0] instanceof Boolean) {
+                    for (var i = 1; i < arguments.length; i++) {
+                        if (!(arguments[i] instanceof Boolean)) {
                             break primitive;
                         }
                     }
 
-                    var storage = new boolean[arguments.getLength()];
+                    var storage = new boolean[arguments.length];
 
-                    for (var i = 0; i < arguments.getLength(); i++) {
-                        storage[i] = arguments.getBoolean(i);
+                    for (var i = 0; i < arguments.length; i++) {
+                        storage[i] = (boolean) arguments[i];
                     }
 
                     return storage;
                 }
-                else if (arguments.isLong(0)) {
-                    for (var i = 1; i < arguments.getLength(); i++) {
-                        if (!arguments.isLong(i)) {
+                else if (arguments[0] instanceof Long) {
+                    for (var i = 1; i < arguments.length; i++) {
+                        if (!(arguments[i] instanceof Long)) {
                             break primitive;
                         }
                     }
 
-                    var storage = new long[arguments.getLength()];
+                    var storage = new long[arguments.length];
 
-                    for (var i = 0; i < arguments.getLength(); i++) {
-                        storage[i] = arguments.getLong(i);
+                    for (var i = 0; i < arguments.length; i++) {
+                        storage[i] = (long) arguments[i];
                     }
 
                     return storage;
                 }
-                else if (arguments.isDouble(0)) {
-                    for (var i = 1; i < arguments.getLength(); i++) {
-                        if (!arguments.isDouble(i)) {
+                else if (arguments[0] instanceof Double) {
+                    for (var i = 1; i < arguments.length; i++) {
+                        if (!(arguments[i] instanceof Double)) {
                             break primitive;
                         }
                     }
 
-                    var storage = new double[arguments.getLength()];
+                    var storage = new double[arguments.length];
 
-                    for (var i = 0; i < arguments.getLength(); i++) {
-                        storage[i] = arguments.getDouble(i);
+                    for (var i = 0; i < arguments.length; i++) {
+                        storage[i] = (double) arguments[i];
                     }
 
                     return storage;
@@ -134,7 +134,7 @@ public final class CraterTablePackBuiltin extends CraterBuiltin {
                 }
             }
 
-            return arguments.getCopyOfValues();
+            return Arrays.copyOf(arguments, arguments.length);
         }
 
         private CraterTable createTable(long n, DynamicObjectLibrary tables) {
@@ -152,15 +152,15 @@ public final class CraterTablePackBuiltin extends CraterBuiltin {
 
     @GenerateUncached
     static abstract class CreateConstantLengthStorageNode extends CraterNode {
-        abstract Object execute(CraterMultipleValues arguments, int length);
+        abstract Object execute(Object[] arguments, int length);
 
         @ExplodeLoop
         @Specialization(guards = "isAllBooleans(arguments, length)")
-        boolean[] doAllBooleans(CraterMultipleValues arguments, int length) {
+        boolean[] doAllBooleans(Object[] arguments, int length) {
             var storage = new boolean[length];
 
             for (var i = 0; i < length; i++) {
-                storage[i] = arguments.getBoolean(i);
+                storage[i] = (boolean) arguments[i];
             }
 
             return storage;
@@ -168,11 +168,11 @@ public final class CraterTablePackBuiltin extends CraterBuiltin {
 
         @ExplodeLoop
         @Specialization(guards = "isAllLongs(arguments, length)")
-        long[] doAllLongs(CraterMultipleValues arguments, int length) {
+        long[] doAllLongs(Object[] arguments, int length) {
             var storage = new long[length];
 
             for (var i = 0; i < length; i++) {
-                storage[i] = arguments.getLong(i);
+                storage[i] = (long) arguments[i];
             }
 
             return storage;
@@ -180,11 +180,11 @@ public final class CraterTablePackBuiltin extends CraterBuiltin {
 
         @ExplodeLoop
         @Specialization(guards = "isAllDoubles(arguments, length)")
-        double[] doAllDoubles(CraterMultipleValues arguments, int length) {
+        double[] doAllDoubles(Object[] arguments, int length) {
             var storage = new double[length];
 
             for (var i = 0; i < length; i++) {
-                storage[i] = arguments.getDouble(i);
+                storage[i] = (double) arguments[i];
             }
 
             return storage;
@@ -192,20 +192,20 @@ public final class CraterTablePackBuiltin extends CraterBuiltin {
 
         @Fallback
         @ExplodeLoop
-        Object[] doGeneric(CraterMultipleValues arguments, int length) {
+        Object[] doGeneric(Object[] arguments, int length) {
             var storage = new Object[length];
 
             for (var i = 0; i < length; i++) {
-                storage[i] = arguments.get(i);
+                storage[i] = arguments[i];
             }
 
             return storage;
         }
 
         @ExplodeLoop
-        static boolean isAllBooleans(CraterMultipleValues arguments, int length) {
+        static boolean isAllBooleans(Object[] arguments, int length) {
             for (var i = 0; i < length; i++) {
-                if (!arguments.isBoolean(i)) {
+                if (!(arguments[i] instanceof Boolean)) {
                     return false;
                 }
             }
@@ -214,9 +214,9 @@ public final class CraterTablePackBuiltin extends CraterBuiltin {
         }
 
         @ExplodeLoop
-        static boolean isAllLongs(CraterMultipleValues arguments, int length) {
+        static boolean isAllLongs(Object[] arguments, int length) {
             for (var i = 0; i < length; i++) {
-                if (!arguments.isLong(i)) {
+                if (!(arguments[i] instanceof Long)) {
                     return false;
                 }
             }
@@ -225,9 +225,9 @@ public final class CraterTablePackBuiltin extends CraterBuiltin {
         }
 
         @ExplodeLoop
-        static boolean isAllDoubles(CraterMultipleValues arguments, int length) {
+        static boolean isAllDoubles(Object[] arguments, int length) {
             for (var i = 0; i < length; i++) {
-                if (!arguments.isDouble(i)) {
+                if (!(arguments[i] instanceof Double)) {
                     return false;
                 }
             }

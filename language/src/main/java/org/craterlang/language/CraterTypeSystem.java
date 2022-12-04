@@ -6,20 +6,20 @@ import com.oracle.truffle.api.dsl.TypeSystem;
 import com.oracle.truffle.api.strings.TruffleString;
 import org.craterlang.language.runtime.CraterClosure;
 import org.craterlang.language.runtime.CraterNil;
-import org.craterlang.language.runtime.CraterNoValues;
 import org.craterlang.language.runtime.CraterTable;
-import org.craterlang.language.runtime.CraterMultipleValues;
+
+import static com.oracle.truffle.api.CompilerDirectives.castExact;
+import static com.oracle.truffle.api.CompilerDirectives.isExact;
 
 @TypeSystem({
     boolean.class,
     long.class,
     double.class,
     CraterClosure.class,
-    CraterMultipleValues.class,
-    CraterNoValues.class,
     CraterNil.class,
     CraterTable.class,
     TruffleString.class,
+    Object[].class,
 })
 public abstract class CraterTypeSystem {
     @TypeCheck(CraterNil.class)
@@ -33,14 +33,13 @@ public abstract class CraterTypeSystem {
         return CraterNil.getInstance();
     }
 
-    @TypeCheck(CraterNoValues.class)
-    public static boolean isNoValues(Object value) {
-        return value == CraterNoValues.getInstance();
+    @TypeCheck(Object[].class)
+    public static boolean isObjectArray(Object value) {
+        return isExact(value, Object[].class);
     }
 
-    @TypeCast(CraterNoValues.class)
-    public static CraterNoValues asNoValues(Object value) {
-        assert isNoValues(value);
-        return CraterNoValues.getInstance();
+    @TypeCast(Object[].class)
+    public static Object[] asObjectArray(Object value) {
+        return castExact(value, Object[].class);
     }
 }

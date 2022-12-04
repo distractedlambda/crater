@@ -4,7 +4,6 @@ import com.oracle.truffle.api.dsl.Fallback;
 import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.Specialization;
 import org.craterlang.language.CraterNode;
-import org.craterlang.language.runtime.CraterMultipleValues;
 
 import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
 
@@ -22,19 +21,27 @@ abstract class CraterExtractSingleDoubleArgumentNode extends CraterNode {
         return argument;
     }
 
-    @Specialization(guards = "arguments.isLong(0)")
-    double doMultipleValuesLong(CraterMultipleValues arguments) {
-        return arguments.getLong(0);
+    @Specialization(guards = {"arguments.length > 1", "firstValueIsLong(arguments)"})
+    double doMultipleValuesLong(Object[] arguments) {
+        return (long) arguments[0];
     }
 
-    @Specialization(guards = "arguments.isDouble(0)")
-    double doMultipleValuesDouble(CraterMultipleValues arguments) {
-        return arguments.getDouble(0);
+    @Specialization(guards = {"arguments.length > 1", "firstValueIsDouble(arguments)"})
+    double doMultipleValuesDouble(Object[] arguments) {
+        return (double) arguments[0];
     }
 
     @Fallback
     double doInvalid(Object arguments) {
         transferToInterpreter();
         throw error("");
+    }
+
+    static boolean firstValueIsLong(Object[] values) {
+        return values[0] instanceof Long;
+    }
+
+    static boolean firstValueIsDouble(Object[] values) {
+        return values[0] instanceof Double;
     }
 }

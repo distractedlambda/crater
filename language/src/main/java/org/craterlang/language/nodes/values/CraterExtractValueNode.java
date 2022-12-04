@@ -4,22 +4,20 @@ import com.oracle.truffle.api.dsl.Fallback;
 import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.Specialization;
 import org.craterlang.language.CraterNode;
-import org.craterlang.language.runtime.CraterMultipleValues;
 import org.craterlang.language.runtime.CraterNil;
-import org.craterlang.language.runtime.CraterNoValues;
 
 @GenerateUncached
 public abstract class CraterExtractValueNode extends CraterNode {
     public abstract Object execute(Object values, int index);
 
-    @Specialization
-    CraterNil doNoValues(CraterNoValues values, int index) {
+    @Specialization(guards = "values.length == 0")
+    CraterNil doNoValues(Object[] values, int index) {
         return CraterNil.getInstance();
     }
 
-    @Specialization
-    Object doMultipleValues(CraterMultipleValues values, int index) {
-        return index <= values.getLength() ? values.get(index) : CraterNil.getInstance();
+    @Specialization(guards = "values.length > 0")
+    Object doMultipleValues(Object[] values, int index) {
+        return index <= values.length ? values[index] : CraterNil.getInstance();
     }
 
     @Fallback

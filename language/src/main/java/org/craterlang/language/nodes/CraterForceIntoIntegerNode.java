@@ -10,25 +10,25 @@ import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
 
 @GenerateUncached
 public abstract class CraterForceIntoIntegerNode extends CraterNode {
-    public abstract long execute(Object index);
+    public abstract long execute(Object value);
 
     @Specialization
-    long doLong(long index) {
-        return index;
+    long doLong(long value) {
+        return value;
     }
 
     @Specialization
-    long doDouble(double index) {
-        if (!CraterMath.hasExactLongValue(index)) {
+    long doDouble(double value) {
+        if (!CraterMath.hasExactLongValue(value)) {
             transferToInterpreter();
             throw error("");
         }
 
-        return (long) index;
+        return (long) value;
     }
 
     @Fallback
-    long doOther(Object index) {
+    long doOther(Object value) {
         transferToInterpreter();
         throw error("");
     }
