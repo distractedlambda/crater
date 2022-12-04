@@ -2,6 +2,7 @@ package org.craterlang.language;
 
 import com.oracle.truffle.api.source.Source;
 import com.oracle.truffle.api.source.SourceSection;
+import com.oracle.truffle.api.strings.TruffleString;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.craterlang.language.CraterParser.AddSubExpressionContext;
@@ -49,9 +50,11 @@ import org.craterlang.language.CraterParser.StatementContext;
 import org.craterlang.language.CraterParser.TableExpressionContext;
 import org.craterlang.language.CraterParser.VarContext;
 import org.craterlang.language.CraterParser.WhileStatementContext;
+import org.craterlang.language.runtime.CraterNil;
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.collections.EconomicSet;
 
+import java.math.BigInteger;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -231,6 +234,87 @@ public class CraterChunkCompiler {
             }
         }
 
+        private Operand process(LiteralExpressionContext context) {
+            Object constantValue;
+
+            switch (context.token.getType()) {
+                case CraterParser.KwNil -> constantValue = CraterNil.getInstance();
+                case CraterParser.KwFalse -> constantValue = false;
+                case CraterParser.KwTrue -> constantValue = true;
+                case CraterParser.DecInteger -> constantValue = parseDecInteger(context.token);
+                case CraterParser.HexInteger -> constantValue = parseHexInteger(context.token);
+                case CraterParser.DecFloat, CraterParser.HexFloat -> constantValue = parseFloatingPoint(context.token);
+                case CraterParser.ShortString -> constantValue = parseShortString(context.token);
+                case CraterParser.LongString -> constantValue = parseLongString(context.token);
+
+                case CraterParser.Dot3 -> {
+                    return currentBlock().append(new GetVarargsInstruction(context));
+                }
+
+                default -> throw new AssertionError();
+            }
+
+            return new Constant(constantValue);
+        }
+
+        private Object parseDecInteger(Token token) {
+            var text = token.getText();
+            try {
+                return Long.parseLong(text, 10);
+            }
+            catch (NumberFormatException exception) {
+                return Double.parseDouble(text);
+            }
+        }
+
+        private long parseHexInteger(Token token) {
+            var text = token.getText();
+            var value = 0L;
+
+            for (var i = 2; i < text.length(); i++) {
+                value *= 16;
+                value += hexDigitValue(text.charAt(i));
+            }
+
+            return value;
+        }
+
+        private static byte hexDigitValue(char digit) {
+            return switch (digit) {
+                case '0' -> 0;
+                case '1' -> 1;
+                case '2' -> 2;
+                case '3' -> 3;
+                case '4' -> 4;
+                case '5' -> 5;
+                case '6' -> 6;
+                case '7' -> 7;
+                case '8' -> 8;
+                case '9' -> 9;
+                case 'a', 'A' -> 10;
+                case 'b', 'B' -> 11;
+                case 'c', 'C' -> 12;
+                case 'd', 'D' -> 13;
+                case 'e', 'E' -> 14;
+                case 'f', 'F' -> 15;
+                default -> throw new NumberFormatException();
+            };
+        }
+
+        private double parseFloatingPoint(Token token) {
+            return Double.parseDouble(token.getText());
+        }
+
+        private TruffleString parseShortString(Token token) {
+            // TODO
+            return null;
+        }
+
+        private TruffleString parseLongString(Token token) {
+            // TODO
+            return null;
+        }
+
         private Operand process(PrefixExpressionContext context) {
             if (context instanceof NameExpressionContext ctx) {
                 return process(ctx);
@@ -277,7 +361,21 @@ public class CraterChunkCompiler {
             }
         }
 
+        private List<Operand> process(CraterParser.ArgsContext context) {
+            // TODO
+            return null;
+        }
+
         private void process(ReturnStatementContext context) {
+            if (context.values.size() == 1) {
+                if (context.values.get(0) instanceof PrefixExpressionExpressionContext expressionContext) {
+                    if (expressionContext.child instanceof CallExpressionContext callContext) {
+                        append(new TailCallInstruction(context, process(callContext), process(callContext.arguments)));
+                        return;
+                    }
+                }
+            }
+
             append(new ReturnInstruction(context, context.values.stream().map(this::process).toList()));
         }
 
@@ -575,6 +673,13 @@ public class CraterChunkCompiler {
         }
     }
 
+    private static final class GetVarargsInstruction extends Instruction {
+
+        GetVarargsInstruction(ParserRuleContext context) {
+            super(context);
+        }
+    }
+
     private static final class ReturnInstruction extends Instruction {
         final List<Operand> values;
 
@@ -755,13 +860,13 @@ public class CraterChunkCompiler {
     }
 
     private static final class NonTailCallInstruction extends CallInstruction {
-        NonTailCallInstruction(ParserRuleContext context, Instruction callee, List<Operand> arguments) {
+        NonTailCallInstruction(ParserRuleContext context, Operand callee, List<Operand> arguments) {
             super(context, callee, arguments);
         }
     }
 
     private static final class TailCallInstruction extends CallInstruction {
-        TailCallInstruction(ParserRuleContext context, Instruction callee, List<Operand> arguments) {
+        TailCallInstruction(ParserRuleContext context, Operand callee, List<Operand> arguments) {
             super(context, callee, arguments);
         }
 
@@ -828,6 +933,12 @@ public class CraterChunkCompiler {
             SHL,
             SHR,
             SUB,
+        }
+    }
+
+    private static final class NewTableInstruction extends Instruction {
+        NewTableInstruction(ParserRuleContext context) {
+            super(context);
         }
     }
 }
