@@ -184,7 +184,9 @@ fragment ShortStringEscape:
   | '\\'
   | '"'
   | '\''
-  | '\r'? '\n'
+  | '\r\n'
+  | '\r'
+  | '\n'
   | 'z' Whitespace*
   | 'x' HexDigit HexDigit
   | 'd' DecDigit (DecDigit DecDigit?)?

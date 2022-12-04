@@ -2,6 +2,7 @@ package org.craterlang.language;
 
 import com.oracle.truffle.api.Assumption;
 import com.oracle.truffle.api.CallTarget;
+import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.TruffleLanguage;
 import com.oracle.truffle.api.nodes.Node;
@@ -145,13 +146,18 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
         return new CraterTable(rootTableShape);
     }
 
+    @TruffleBoundary
     public TruffleString getLiteralString(String javaString) {
         var string = TruffleString
             .fromJavaStringUncached(javaString, TruffleString.Encoding.UTF_8)
             .forceEncodingUncached(TruffleString.Encoding.UTF_8, TruffleString.Encoding.BYTES);
 
-        var existingString = literalStrings.putIfAbsent(string, string);
+        return literalizeString(string);
+    }
 
+    @TruffleBoundary
+    public TruffleString literalizeString(TruffleString string) {
+        var existingString = literalStrings.putIfAbsent(string, string);
         if (existingString != null) {
             return existingString;
         }

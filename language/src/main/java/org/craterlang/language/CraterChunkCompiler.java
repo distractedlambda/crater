@@ -3,6 +3,7 @@ package org.craterlang.language;
 import com.oracle.truffle.api.source.Source;
 import com.oracle.truffle.api.source.SourceSection;
 import com.oracle.truffle.api.strings.TruffleString;
+import com.oracle.truffle.api.strings.TruffleStringBuilder;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.craterlang.language.CraterParser.AddSubExpressionContext;
@@ -54,19 +55,25 @@ import org.craterlang.language.runtime.CraterNil;
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.collections.EconomicSet;
 
-import java.math.BigInteger;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.function.Consumer;
 
+import static java.lang.Character.isHighSurrogate;
+import static java.lang.Character.isLowSurrogate;
+import static java.lang.Character.toCodePoint;
+import static java.lang.Math.addExact;
+import static java.lang.Math.multiplyExact;
 import static java.util.Objects.requireNonNull;
 
 public class CraterChunkCompiler {
+    private final CraterLanguage language;
     private final Source source;
 
-    public CraterChunkCompiler(Source source) {
+    public CraterChunkCompiler(CraterLanguage language, Source source) {
+        this.language = language;
         this.source = source;
     }
 
@@ -301,13 +308,158 @@ public class CraterChunkCompiler {
             };
         }
 
+        private static byte decDigitValue(char digit) {
+            return (byte) (digit - '0');
+        }
+
+        private static boolean isDecDigit(char c) {
+            return c >= '0' && c <= '9';
+        }
+
         private double parseFloatingPoint(Token token) {
             return Double.parseDouble(token.getText());
         }
 
         private TruffleString parseShortString(Token token) {
-            // TODO
-            return null;
+            var text = token.getText();
+            var builder = TruffleStringBuilder.create(TruffleString.Encoding.BYTES);
+
+            parseNext: for (var i = 1; i < text.length() - 1;) {
+                if (text.charAt(i++) == '\\') {
+                    switch (text.charAt(i++)) {
+                        case 'a' -> builder.appendByteUncached((byte) '\7');
+                        case 'b' -> builder.appendByteUncached((byte) '\b');
+                        case 'f' -> builder.appendByteUncached((byte) '\f');
+                        case 'n', '\n' -> builder.appendByteUncached((byte) '\n');
+                        case 'r' -> builder.appendByteUncached((byte) '\r');
+                        case 't' -> builder.appendByteUncached((byte) '\t');
+                        case 'v' -> builder.appendByteUncached((byte) '\u000b');
+                        case '\\' -> builder.appendByteUncached((byte) '\\');
+                        case '"' -> builder.appendByteUncached((byte) '"');
+                        case '\'' -> builder.appendByteUncached((byte) '\'');
+
+                        case '\r' -> {
+                            if (text.charAt(i) == '\n') {
+                                i++;
+                            }
+
+                            builder.appendByteUncached((byte) '\n');
+                        }
+
+                        case 'z' -> {
+                            for (; ; ) {
+                                switch (text.charAt(i)) {
+                                    case ' ', '\f', '\n', '\r', '\t', '\u000b' -> i++;
+                                    default -> {
+                                        continue parseNext;
+                                    }
+                                }
+                            }
+                        }
+
+                        case 'x' -> {
+                            var high = hexDigitValue(text.charAt(i++));
+                            var low = hexDigitValue(text.charAt(i++));
+                            builder.appendByteUncached((byte) (high * 16 + low));
+                        }
+
+                        case 'd' -> {
+                            int value;
+
+                            var first = decDigitValue(text.charAt(i++));
+                            if (isDecDigit(text.charAt(i))) {
+                                var second = decDigitValue(text.charAt(i++));
+                                if (isDecDigit(text.charAt(i))) {
+                                    var third = decDigitValue(text.charAt(i++));
+                                    value = first * 100 + second * 10 + third;
+                                }
+                                else {
+                                    value = first * 10 + second;
+                                }
+                            }
+                            else {
+                                value = first;
+                            }
+
+                            if (value > 255) {
+                                throw createParseException(token, "Invalid decimal escape sequence");
+                            }
+
+                            builder.appendByteUncached((byte) value);
+                        }
+
+                        case 'u' -> {
+                            i++; // skip '{';
+
+                            var value = 0;
+
+                            try {
+                                while (text.charAt(i) != '}') {
+                                    value = multiplyExact(value, 16);
+                                    value = addExact(value, hexDigitValue(text.charAt(i++)));
+                                }
+                            }
+                            catch (ArithmeticException exception) {
+                                throw createParseException(token, "Invalid UTF8 escape sequence");
+                            }
+
+                            i++; // skip '}'
+
+                            appendRawCodePoint(builder, value);
+                        }
+
+                        default -> throw new AssertionError();
+                    }
+                }
+                else {
+                    int codePoint;
+
+                    if (isHighSurrogate(text.charAt(i - 1)) && isLowSurrogate(text.charAt(i))) {
+                        codePoint = toCodePoint(text.charAt(i - 1), text.charAt(i++));
+                    }
+                    else {
+                        codePoint = text.charAt(i - 1);
+                    }
+
+                    appendRawCodePoint(builder, codePoint);
+                }
+            }
+
+            return language.literalizeString(builder.toStringUncached());
+        }
+
+        private static void appendRawCodePoint(TruffleStringBuilder builder, int codePoint) {
+            if (codePoint >= 0x80) {
+                if (codePoint >= 0x800) {
+                    if (codePoint >= 0x1_0000) {
+                        if (codePoint >= 0x20_0000) {
+                            if (codePoint >= 0x400_0000) {
+                                builder.appendByteUncached((byte) (0xFC | (codePoint >>> 30)));
+                                builder.appendByteUncached((byte) (0x80 | ((codePoint >> 24) & 0x3F)));
+                            }
+                            else {
+                                builder.appendByteUncached((byte) (0xF8 | (codePoint >>> 24)));
+                            }
+                            builder.appendByteUncached((byte) (0x80 | ((codePoint >> 18) & 0x3F)));
+                        }
+                        else {
+                            builder.appendByteUncached((byte) (0xF0 | (codePoint >>> 18)));
+                        }
+                        builder.appendByteUncached((byte) (0x80 | ((codePoint >> 12) & 0x3F)));
+                    }
+                    else {
+                        builder.appendByteUncached((byte) (0xE0 | (codePoint >>> 12)));
+                    }
+                    builder.appendByteUncached((byte) (0x80 | ((codePoint >> 6) & 0x3F)));
+                }
+                else {
+                    builder.appendByteUncached((byte) (0xC0 | (codePoint >>> 6)));
+                }
+                builder.appendByteUncached((byte) (0x80 | (codePoint & 0x3F)));
+            }
+            else {
+                builder.appendByteUncached((byte) codePoint);
+            }
         }
 
         private TruffleString parseLongString(Token token) {
