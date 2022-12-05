@@ -254,7 +254,7 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
         return leMetamethodKey;
     }
 
-    public TruffleString getIndexMetamethodKey() {
+    public TruffleString getIndexMetavalueKey() {
         return indexMetamethodKey;
     }
 
