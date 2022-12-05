@@ -7,7 +7,7 @@ import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
 
 public abstract class CraterFloorDivExpressionNode extends CraterBinaryExpressionNode {
     @Specialization
-    protected long doLongLong(long lhs, long rhs) {
+    long doLongLong(long lhs, long rhs) {
         try {
             return Math.floorDiv(lhs, rhs);
         }
@@ -18,17 +18,17 @@ public abstract class CraterFloorDivExpressionNode extends CraterBinaryExpressio
     }
 
     @Specialization
-    protected double doLongDouble(long lhs, double rhs) {
+    double doLongDouble(long lhs, double rhs) {
         return doDoubleDouble(lhs, rhs);
     }
 
     @Specialization
-    protected double doDoubleLong(double lhs, long rhs) {
+    double doDoubleLong(double lhs, long rhs) {
         return doDoubleDouble(lhs, rhs);
     }
 
     @Specialization
-    protected double doDoubleDouble(double lhs, double rhs) {
+    double doDoubleDouble(double lhs, double rhs) {
         return floorBoundary(lhs / rhs);
     }
 

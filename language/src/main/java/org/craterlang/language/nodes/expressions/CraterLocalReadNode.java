@@ -9,9 +9,9 @@ import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
 
 @ReportPolymorphism.Exclude
 public abstract class CraterLocalReadNode extends CraterExpressionNode {
-    protected final int slot;
+    final int slot;
 
-    protected CraterLocalReadNode(int slot) {
+    CraterLocalReadNode(int slot) {
         assert slot >= 0;
         this.slot = slot;
     }
@@ -25,22 +25,22 @@ public abstract class CraterLocalReadNode extends CraterExpressionNode {
     public abstract Object executeGeneric(VirtualFrame frame);
 
     @Specialization(guards = "frame.isBoolean(slot)")
-    protected boolean doBoolean(VirtualFrame frame) {
+    boolean doBoolean(VirtualFrame frame) {
         return frame.getBoolean(slot);
     }
 
     @Specialization(guards = "frame.isLong(slot)")
-    protected long doLong(VirtualFrame frame) {
+    long doLong(VirtualFrame frame) {
         return frame.getLong(slot);
     }
 
     @Specialization(guards = "frame.isDouble(slot)")
-    protected double doDouble(VirtualFrame frame) {
+    double doDouble(VirtualFrame frame) {
         return frame.getDouble(slot);
     }
 
     @Specialization(replaces = {"doBoolean", "doLong", "doDouble"})
-    protected Object doGeneric(VirtualFrame frame) {
+    Object doGeneric(VirtualFrame frame) {
         if (frame.isObject(slot)) {
             return frame.getObject(slot);
         }
