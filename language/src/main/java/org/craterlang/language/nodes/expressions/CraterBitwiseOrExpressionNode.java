@@ -1,5 +1,7 @@
 package org.craterlang.language.nodes.expressions;
 
+import com.oracle.truffle.api.dsl.Cached;
+import com.oracle.truffle.api.dsl.Fallback;
 import com.oracle.truffle.api.dsl.ImportStatic;
 import com.oracle.truffle.api.dsl.Specialization;
 import org.craterlang.language.runtime.CraterMath;
@@ -24,5 +26,10 @@ public abstract class CraterBitwiseOrExpressionNode extends CraterBinaryExpressi
     @Specialization(guards = {"hasExactLongValue(lhs)", "hasExactLongValue(rhs)"})
     long doDoubleDouble(double lhs, double rhs) {
         return (long) lhs | (long) rhs;
+    }
+
+    @Fallback
+    Object doMetamethod(Object lhs, Object rhs, @Cached CraterBinaryMetamethodInvokeNode metamethodInvokeNode) {
+        return metamethodInvokeNode.execute(lhs, rhs, getLanguage().getBorMetamethodKey());
     }
 }

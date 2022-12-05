@@ -1,6 +1,8 @@
 package org.craterlang.language.nodes.expressions;
 
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
+import com.oracle.truffle.api.dsl.Cached;
+import com.oracle.truffle.api.dsl.Fallback;
 import com.oracle.truffle.api.dsl.Specialization;
 
 import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
@@ -35,5 +37,10 @@ public abstract class CraterFloorDivExpressionNode extends CraterBinaryExpressio
     @TruffleBoundary(allowInlining = true)
     private static double floorBoundary(double x) {
         return Math.floor(x);
+    }
+
+    @Fallback
+    Object doMetamethod(Object lhs, Object rhs, @Cached CraterBinaryMetamethodInvokeNode metamethodInvokeNode) {
+        return metamethodInvokeNode.execute(lhs, rhs, getLanguage().getIdivMetamethodKey());
     }
 }

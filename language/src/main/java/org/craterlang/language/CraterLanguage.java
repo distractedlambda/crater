@@ -126,6 +126,10 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
     private final TruffleString nString = getLiteralString("n");
     private final TruffleString poundSignString = getLiteralString("#");
 
+    private final TruffleString nanString = getLiteralString("nan");
+    private final TruffleString infString = getLiteralString("inf");
+    private final TruffleString negativeInfString = getLiteralString("-inf");
+
     @Override protected Context createContext(Env env) {
         return new Context();
     }
@@ -296,6 +300,18 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
 
     public TruffleString getWeakKeyAndValueModeString() {
         return weakKeyAndValueModeString;
+    }
+
+    public TruffleString getNanString() {
+        return nanString;
+    }
+
+    public TruffleString getInfString() {
+        return infString;
+    }
+
+    public TruffleString getNegativeInfString() {
+        return negativeInfString;
     }
 
     public TruffleString getLowercaseLetterNString() {
