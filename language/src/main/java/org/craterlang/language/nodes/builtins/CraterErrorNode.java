@@ -160,7 +160,7 @@ public abstract class CraterErrorNode extends CraterBuiltinFunctionBodyNode {
     record SourceLocation(TruffleString file, int line, int column) {
         static SourceLocation ofSourceSection(SourceSection sourceSection) {
             return new SourceLocation(
-                CraterLanguage.get(null).getLiteralString(sourceSection.getSource().getPath()),
+                CraterLanguage.get(null).getInternedString(sourceSection.getSource().getPath()),
                 sourceSection.getStartLine(),
                 sourceSection.getStartColumn()
             );

@@ -39,7 +39,7 @@ public abstract class CraterDoubleToStringNode extends CraterNode {
 
     TruffleString doubleToLiteralString(double value) {
         neverPartOfCompilation();
-        return getLanguage().getLiteralString(Double.toString(value));
+        return getLanguage().getInternedString(Double.toString(value));
     }
 
     @Specialization(guards = "isFinite(value)", replaces = "doFiniteConstant")

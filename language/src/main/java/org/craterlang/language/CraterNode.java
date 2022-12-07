@@ -26,6 +26,6 @@ public abstract class CraterNode extends Node {
 
     protected final CraterErrorException error(String message) {
         neverPartOfCompilation();
-        return CraterErrorException.create(getLanguage().getLiteralString(message), this);
+        return CraterErrorException.create(getLanguage().getInternedString(message), this);
     }
 }
