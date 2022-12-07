@@ -1,13 +1,11 @@
 package org.craterlang.language.nodes;
 
 import com.oracle.truffle.api.dsl.Fallback;
-import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.Specialization;
 import org.craterlang.language.CraterNode;
 
 import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
 
-@GenerateUncached
 public abstract class CraterForceIntoDoubleNode extends CraterNode {
     public abstract double execute(Object value);
 

@@ -4,7 +4,7 @@ import com.oracle.truffle.api.dsl.TypeCast;
 import com.oracle.truffle.api.dsl.TypeCheck;
 import com.oracle.truffle.api.dsl.TypeSystem;
 import com.oracle.truffle.api.strings.TruffleString;
-import org.craterlang.language.runtime.CraterClosure;
+import org.craterlang.language.runtime.CraterFunction;
 import org.craterlang.language.runtime.CraterNil;
 import org.craterlang.language.runtime.CraterTable;
 
@@ -15,7 +15,7 @@ import static com.oracle.truffle.api.CompilerDirectives.isExact;
     boolean.class,
     long.class,
     double.class,
-    CraterClosure.class,
+    CraterFunction.class,
     CraterNil.class,
     CraterTable.class,
     TruffleString.class,

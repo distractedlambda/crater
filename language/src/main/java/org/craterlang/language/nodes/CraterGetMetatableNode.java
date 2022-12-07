@@ -1,15 +1,12 @@
 package org.craterlang.language.nodes;
 
 import com.oracle.truffle.api.dsl.Cached;
-import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.Specialization;
 import org.craterlang.language.CraterNode;
-import org.craterlang.language.runtime.CraterBuiltin;
-import org.craterlang.language.runtime.CraterClosure;
+import org.craterlang.language.runtime.CraterFunction;
 import org.craterlang.language.runtime.CraterNil;
 import org.craterlang.language.runtime.CraterTable;
 
-@GenerateUncached
 public abstract class CraterGetMetatableNode extends CraterNode {
     public abstract Object execute(Object subject);
 
@@ -43,16 +40,7 @@ public abstract class CraterGetMetatableNode extends CraterNode {
     }
 
     @Specialization
-    protected Object doClosure(CraterClosure subject) {
-        return doFunction();
-    }
-
-    @Specialization
-    protected Object doBuiltin(CraterBuiltin subject) {
-        return doFunction();
-    }
-
-    private Object doFunction() {
+    protected Object doFunction(CraterFunction subject) {
         return getContext().getFunctionMetatable();
     }
 

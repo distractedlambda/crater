@@ -1,12 +1,10 @@
 package org.craterlang.language.nodes.values;
 
 import com.oracle.truffle.api.dsl.Fallback;
-import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.Specialization;
 import org.craterlang.language.CraterNode;
 import org.craterlang.language.runtime.CraterNil;
 
-@GenerateUncached
 public abstract class CraterExtractValueNode extends CraterNode {
     public abstract Object execute(Object values, int index);
 

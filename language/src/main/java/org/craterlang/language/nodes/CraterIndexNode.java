@@ -9,14 +9,12 @@ import com.oracle.truffle.api.profiles.ConditionProfile;
 import org.craterlang.language.CraterNode;
 import org.craterlang.language.CraterTypeSystem;
 import org.craterlang.language.nodes.values.CraterAdjustToOneValueNode;
-import org.craterlang.language.runtime.CraterBuiltin;
-import org.craterlang.language.runtime.CraterClosure;
+import org.craterlang.language.runtime.CraterFunction;
 import org.craterlang.language.runtime.CraterNil;
 import org.craterlang.language.runtime.CraterTable;
 
 import static org.craterlang.language.CraterTypeSystem.isNil;
 
-@GenerateUncached
 @ImportStatic(CraterTypeSystem.class)
 public abstract class CraterIndexNode extends CraterNode {
     public abstract Object execute(Object receiver, Object key);
@@ -53,7 +51,6 @@ public abstract class CraterIndexNode extends CraterNode {
         }
     }
 
-    @GenerateUncached
     static abstract class ThroughMetavalueNode extends CraterNode {
         abstract Object execute(Object receiver, Object key);
 
@@ -81,7 +78,6 @@ public abstract class CraterIndexNode extends CraterNode {
         }
     }
 
-    @GenerateUncached
     static abstract class MetavalueDispatchNode extends CraterNode {
         abstract Object execute(Object receiver, Object key, Object indexMetavalue);
 
@@ -90,12 +86,12 @@ public abstract class CraterIndexNode extends CraterNode {
             return CraterNil.getInstance();
         }
 
-        @Specialization(guards = "isFunction(function)")
+        @Specialization
         Object doFunction(
             Object receiver,
             Object key,
-            Object function,
-            @Cached CraterInvokeNode invokeNode,
+            CraterFunction function,
+            @Cached CraterFunction.InvokeNode invokeNode,
             @Cached CraterAdjustToOneValueNode adjustToOneValueNode
         ) {
             return adjustToOneValueNode.execute(invokeNode.execute(function, new Object[]{receiver, key}));
@@ -104,10 +100,6 @@ public abstract class CraterIndexNode extends CraterNode {
         @Fallback
         Object doNestedIndex(Object receiver, Object key, Object metavalue, @Cached CraterIndexNode nestedIndexNode) {
             return nestedIndexNode.execute(metavalue, key);
-        }
-
-        static boolean isFunction(Object metavalue) {
-            return metavalue instanceof CraterClosure || metavalue instanceof CraterBuiltin;
         }
     }
 }

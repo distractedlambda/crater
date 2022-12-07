@@ -16,45 +16,37 @@ import static com.oracle.truffle.api.CompilerDirectives.shouldNotReachHere;
 import static com.oracle.truffle.api.nodes.BytecodeOSRNode.pollOSRBackEdge;
 import static com.oracle.truffle.api.nodes.BytecodeOSRNode.tryOSR;
 
-public final class CraterClosureRootNode extends RootNode implements BytecodeOSRNode {
+public final class CraterUserFunctionRootNode extends CraterFunctionRootNode implements BytecodeOSRNode {
     @Children private final CraterInstructionNode[] instructionNodes;
-
-    private final SourceSection sourceSection;
-    private final String qualifiedName;
-    private final String name;
-
     @CompilationFinal private Object osrMetadata;
 
-    private CraterClosureRootNode(
+    private CraterUserFunctionRootNode(
         CraterLanguage language,
         FrameDescriptor frameDescriptor,
-        CraterInstructionNode[] instructionNodes,
         SourceSection sourceSection,
         String qualifiedName,
-        String name
+        String name,
+        CraterInstructionNode[] instructionNodes
     ) {
-        super(language, frameDescriptor);
+        super(language, frameDescriptor, sourceSection, qualifiedName, name);
         this.instructionNodes = instructionNodes;
-        this.sourceSection = sourceSection;
-        this.qualifiedName = qualifiedName;
-        this.name = name;
     }
 
-    public CraterClosureRootNode(
+    public CraterUserFunctionRootNode(
         CraterLanguage language,
         FrameDescriptor frameDescriptor,
-        List<CraterInstructionNode> instructionNodes,
         SourceSection sourceSection,
         String qualifiedName,
-        String name
+        String name,
+        List<CraterInstructionNode> instructionNodes
     ) {
         this(
             language,
             frameDescriptor,
-            instructionNodes.toArray(CraterInstructionNode[]::new),
             sourceSection,
             qualifiedName,
-            name
+            name,
+            instructionNodes.toArray(CraterInstructionNode[]::new)
         );
     }
 
@@ -95,35 +87,19 @@ public final class CraterClosureRootNode extends RootNode implements BytecodeOSR
         this.osrMetadata = osrMetadata;
     }
 
-    @Override public SourceSection getSourceSection() {
-        return sourceSection;
-    }
-
-    @Override public String getQualifiedName() {
-        return qualifiedName;
-    }
-
-    @Override public String getName() {
-        return name;
-    }
-
-    @Override protected boolean isCloneUninitializedSupported() {
-        return true;
-    }
-
     @Override protected RootNode cloneUninitialized() {
         var clonedInstructionNodes = Arrays
             .stream(instructionNodes)
             .map(CraterInstructionNode::cloneUninitialized)
             .toArray(CraterInstructionNode[]::new);
 
-        return new CraterClosureRootNode(
+        return new CraterUserFunctionRootNode(
             getLanguage(CraterLanguage.class),
             getFrameDescriptor(),
-            clonedInstructionNodes,
-            sourceSection,
-            qualifiedName,
-            name
+            getSourceSection(),
+            getQualifiedName(),
+            getName(),
+            clonedInstructionNodes
         );
     }
 }

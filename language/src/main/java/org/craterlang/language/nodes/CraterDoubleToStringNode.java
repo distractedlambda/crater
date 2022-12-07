@@ -2,7 +2,6 @@ package org.craterlang.language.nodes;
 
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.dsl.Cached;
-import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.ImportStatic;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.strings.TruffleString;
@@ -10,7 +9,6 @@ import org.craterlang.language.CraterNode;
 
 import static com.oracle.truffle.api.CompilerAsserts.neverPartOfCompilation;
 
-@GenerateUncached
 @ImportStatic(Double.class)
 public abstract class CraterDoubleToStringNode extends CraterNode {
     public abstract TruffleString execute(double value);

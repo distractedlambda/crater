@@ -1,67 +1,50 @@
-package org.craterlang.language.runtime.builtins;
+package org.craterlang.language.nodes.builtins;
 
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.Fallback;
-import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.ImportStatic;
 import com.oracle.truffle.api.dsl.Specialization;
-import com.oracle.truffle.api.nodes.EncapsulatingNodeReference;
 import com.oracle.truffle.api.nodes.Node;
-import com.oracle.truffle.api.profiles.BranchProfile;
 import com.oracle.truffle.api.profiles.ConditionProfile;
-import com.oracle.truffle.api.profiles.IntValueProfile;
 import com.oracle.truffle.api.source.SourceSection;
 import com.oracle.truffle.api.strings.TruffleString;
 import com.oracle.truffle.api.strings.TruffleStringBuilder;
 import org.craterlang.language.CraterLanguage;
 import org.craterlang.language.CraterNode;
 import org.craterlang.language.nodes.CraterForceIntoIntegerNode;
-import org.craterlang.language.runtime.CraterBuiltin;
 import org.craterlang.language.runtime.CraterNil;
 
 import static org.craterlang.language.CraterTypeSystem.isNil;
 
-public final class CraterErrorBuiltin extends CraterBuiltin {
-    @Override public BodyNode createBodyNode() {
-        return CraterErrorBuiltinFactory.ImplNodeGen.create();
-    }
+public abstract class CraterErrorNode extends CraterBuiltinBodyNode {
+    @Specialization
+    Object doExecute(
+        Object[] arguments,
+        int argumentsStart,
+        int argumentsLength,
+        @Cached ConditionProfile levelIsNilProfile,
+        @Cached CraterForceIntoIntegerNode forceLevelIntoIntegerNode,
+        @Cached AddLocationToMessageNode addLocationToMessageNode
+    ) {
+        var message = argumentsLength > 0 ? arguments[argumentsStart] : CraterNil.getInstance();
+        var level = arguments.length > 1 ? arguments[argumentsStart + 1] : CraterNil.getInstance();
 
-    @Override public Object invokeUncached(Object[] arguments) {
-        return CraterErrorBuiltinFactory.ImplNodeGen.getUncached().execute(arguments);
-    }
+        long levelInteger;
 
-    @GenerateUncached
-    static abstract class ImplNode extends BodyNode {
-        @Specialization
-        Object doExecute(
-            Object[] arguments,
-            @Cached IntValueProfile argumentsLengthProfile,
-            @Cached ConditionProfile levelIsNilProfile,
-            @Cached CraterForceIntoIntegerNode forceLevelIntoIntegerNode,
-            @Cached AddLocationToMessageNode addLocationToMessageNode
-        ) {
-            var argumentsLength = argumentsLengthProfile.profile(arguments.length);
-            var message = argumentsLength >= 1 ? arguments[0] : CraterNil.getInstance();
-            var level = argumentsLength >= 2 ? arguments[1] : CraterNil.getInstance();
-
-            long levelInteger;
-
-            if (levelIsNilProfile.profile(isNil(level))) {
-                levelInteger = 1;
-            }
-            else {
-                levelInteger = forceLevelIntoIntegerNode.execute(level);
-            }
-
-            message = addLocationToMessageNode.execute(message, levelInteger);
-
-            throw error(message);
+        if (levelIsNilProfile.profile(isNil(level))) {
+            levelInteger = 1;
         }
+        else {
+            levelInteger = forceLevelIntoIntegerNode.execute(level);
+        }
+
+        message = addLocationToMessageNode.execute(message, levelInteger);
+
+        throw error(message);
     }
 
-    @GenerateUncached
     static abstract class AddLocationToMessageNode extends CraterNode {
         abstract Object execute(Object message, long level);
 
@@ -69,13 +52,12 @@ public final class CraterErrorBuiltin extends CraterBuiltin {
         TruffleString doAddLocation(
             TruffleString message,
             long level,
-            @Cached GetSourceLocationNode getSourceLocationNode,
-            @Cached BranchProfile nullSourceLocationProfile,
+            @Cached GetCallSiteSourceLocationNode getCallSiteSourceLocationNode,
+            @Cached ConditionProfile sourceLocationIsNullProfile,
             @Cached BuildMessageWithLocationNode buildMessageWithLocationNode
         ) {
-            var location = getSourceLocationNode.execute((int) (level - 2));
-            if (location == null) {
-                nullSourceLocationProfile.enter();
+            var location = getCallSiteSourceLocationNode.execute(getCallSite((int) (level - 1)));
+            if (sourceLocationIsNullProfile.profile(location == null)) {
                 return message;
             }
             else {
@@ -83,13 +65,37 @@ public final class CraterErrorBuiltin extends CraterBuiltin {
             }
         }
 
+        @TruffleBoundary
+        private static Node getCallSite(int skipFrames) {
+            var callSite = Truffle.getRuntime().iterateFrames(
+                frame -> {
+                    var callNode = frame.getCallNode();
+                    if (callNode == null) {
+                        return UNKNOWN_CALL_SITE;
+                    }
+                    else {
+                        return callNode;
+                    }
+                },
+                skipFrames
+            );
+
+            if (callSite == UNKNOWN_CALL_SITE) {
+                return null;
+            }
+            else {
+                return (Node) callSite;
+            }
+        }
+
+        private static final Object UNKNOWN_CALL_SITE = new Object();
+
         @Fallback
         Object doPassThrough(Object message, long level) {
             return message;
         }
     }
 
-    @GenerateUncached
     static abstract class BuildMessageWithLocationNode extends CraterNode {
         abstract TruffleString execute(TruffleString message, SourceLocation sourceLocation);
 
@@ -118,70 +124,6 @@ public final class CraterErrorBuiltin extends CraterBuiltin {
         }
     }
 
-    @GenerateUncached
-    @ImportStatic(SourceLocation.class)
-    static abstract class GetSourceLocationNode extends CraterNode {
-        abstract SourceLocation execute(int skipFrames);
-
-        @Specialization(guards = "skipFrames < 0")
-        SourceLocation doSelf(
-            int skipFrames,
-            @Cached(value = "getSourceLocation()", allowUncached = true) SourceLocation sourceLocation
-        ) {
-            return sourceLocation;
-        }
-
-        SourceLocation getSourceLocation() {
-            Node target;
-
-            if (isAdoptable()) {
-                target = this;
-            }
-            else {
-                target = EncapsulatingNodeReference.getCurrent().get();
-                if (target == null) {
-                    return null;
-                }
-            }
-
-            return SourceLocation.ofNode(target);
-        }
-
-        @Fallback
-        SourceLocation doCaller(
-            int skipFrames,
-            @Cached GetCallSiteSourceLocationNode getCallSiteSourceLocationNode
-        ) {
-            return getCallSiteSourceLocationNode.execute(getCallSite(skipFrames));
-        }
-
-        @TruffleBoundary
-        private static Node getCallSite(int skipFrames) {
-            var callSite = Truffle.getRuntime().iterateFrames(
-                frame -> {
-                    var callNode = frame.getCallNode();
-                    if (callNode == null) {
-                        return UNKNOWN_CALL_SITE;
-                    }
-                    else {
-                        return callNode;
-                    }
-                },
-                skipFrames
-            );
-
-            if (callSite == UNKNOWN_CALL_SITE) {
-                return null;
-            }
-            else {
-                return (Node) callSite;
-            }
-        }
-
-        private static final Object UNKNOWN_CALL_SITE = new Object();
-    }
-
-    @GenerateUncached
     @ImportStatic(SourceLocation.class)
     static abstract class GetCallSiteSourceLocationNode extends CraterNode {
         abstract SourceLocation execute(Node callSite);

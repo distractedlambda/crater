@@ -2,6 +2,7 @@ package org.craterlang.language;
 
 import com.oracle.truffle.api.Assumption;
 import com.oracle.truffle.api.CallTarget;
+import com.oracle.truffle.api.CompilerAsserts;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.TruffleLanguage;
@@ -13,6 +14,8 @@ import org.craterlang.language.runtime.CraterNil;
 import org.craterlang.language.runtime.CraterTable;
 
 import java.util.concurrent.ConcurrentHashMap;
+
+import static com.oracle.truffle.api.CompilerAsserts.neverPartOfCompilation;
 
 @TruffleLanguage.Registration(id = "crater", name = "Crater", contextPolicy = TruffleLanguage.ContextPolicy.SHARED)
 public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context> {
@@ -148,6 +151,16 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
 
     public CraterTable createTable() {
         return new CraterTable(rootTableShape);
+    }
+
+    public Shape getFunctionRootShape(CallTarget callTarget) {
+        neverPartOfCompilation();
+
+        return Shape.newBuilder()
+            .propertyAssumptions(true)
+            .singleContextAssumption(singleContextAssumption)
+            .dynamicType(callTarget)
+            .build();
     }
 
     @TruffleBoundary

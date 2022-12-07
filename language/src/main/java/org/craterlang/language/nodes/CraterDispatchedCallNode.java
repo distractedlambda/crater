@@ -2,13 +2,11 @@ package org.craterlang.language.nodes;
 
 import com.oracle.truffle.api.CallTarget;
 import com.oracle.truffle.api.dsl.Cached;
-import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.nodes.DirectCallNode;
 import com.oracle.truffle.api.nodes.IndirectCallNode;
 import org.craterlang.language.CraterNode;
 
-@GenerateUncached
 public abstract class CraterDispatchedCallNode extends CraterNode {
     public abstract Object execute(CallTarget callTarget, Object[] arguments);
 
