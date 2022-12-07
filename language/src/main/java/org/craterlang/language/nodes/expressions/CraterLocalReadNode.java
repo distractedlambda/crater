@@ -1,12 +1,13 @@
 package org.craterlang.language.nodes.expressions;
 
+import com.oracle.truffle.api.dsl.GeneratePackagePrivate;
 import com.oracle.truffle.api.dsl.ReportPolymorphism;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.frame.VirtualFrame;
-import com.oracle.truffle.api.nodes.UnexpectedResultException;
 
 import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
 
+@GeneratePackagePrivate
 @ReportPolymorphism.Exclude
 public abstract class CraterLocalReadNode extends CraterExpressionNode {
     final int slot;
@@ -16,13 +17,13 @@ public abstract class CraterLocalReadNode extends CraterExpressionNode {
         this.slot = slot;
     }
 
-    public abstract boolean executeBoolean(VirtualFrame frame) throws UnexpectedResultException;
+    public static CraterLocalReadNode create(int slot) {
+        return CraterLocalReadNodeGen.create(slot);
+    }
 
-    public abstract long executeLong(VirtualFrame frame) throws UnexpectedResultException;
-
-    public abstract double executeDouble(VirtualFrame frame) throws UnexpectedResultException;
-
-    public abstract Object executeGeneric(VirtualFrame frame);
+    @Override public CraterExpressionNode cloneUninitialized() {
+        return create(slot);
+    }
 
     @Specialization(guards = "frame.isBoolean(slot)")
     boolean doBoolean(VirtualFrame frame) {

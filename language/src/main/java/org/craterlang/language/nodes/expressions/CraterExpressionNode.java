@@ -6,6 +6,8 @@ import org.craterlang.language.CraterNode;
 import org.craterlang.language.CraterTypeSystemGen;
 
 public abstract class CraterExpressionNode extends CraterNode {
+    public abstract CraterExpressionNode cloneUninitialized();
+
     public abstract Object executeGeneric(VirtualFrame frame);
 
     public boolean executeBoolean(VirtualFrame frame) throws UnexpectedResultException {

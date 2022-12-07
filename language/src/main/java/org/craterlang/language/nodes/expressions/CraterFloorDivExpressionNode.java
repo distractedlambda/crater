@@ -3,11 +3,21 @@ package org.craterlang.language.nodes.expressions;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.Fallback;
+import com.oracle.truffle.api.dsl.GeneratePackagePrivate;
 import com.oracle.truffle.api.dsl.Specialization;
 
 import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
 
+@GeneratePackagePrivate
 public abstract class CraterFloorDivExpressionNode extends CraterBinaryExpressionNode {
+    public static CraterFloorDivExpressionNode create(CraterExpressionNode lhsNode, CraterExpressionNode rhsNode) {
+        return CraterFloorDivExpressionNodeGen.create(lhsNode, rhsNode);
+    }
+
+    @Override public CraterExpressionNode cloneUninitialized() {
+        return create(getLhsNode(), getRhsNode());
+    }
+
     @Specialization
     long doLongLong(long lhs, long rhs) {
         try {

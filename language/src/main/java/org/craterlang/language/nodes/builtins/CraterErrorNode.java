@@ -4,6 +4,7 @@ import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.Fallback;
+import com.oracle.truffle.api.dsl.GeneratePackagePrivate;
 import com.oracle.truffle.api.dsl.ImportStatic;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.nodes.Node;
@@ -16,9 +17,16 @@ import org.craterlang.language.CraterNode;
 import org.craterlang.language.nodes.CraterForceIntoIntegerNode;
 import org.craterlang.language.runtime.CraterNil;
 
+import java.util.function.Supplier;
+
 import static org.craterlang.language.CraterTypeSystem.isNil;
 
-public abstract class CraterErrorNode extends CraterBuiltinBodyNode {
+@GeneratePackagePrivate
+public abstract class CraterErrorNode extends CraterBuiltinFunctionBodyNode {
+    public static Supplier<CraterErrorNode> getFactory() {
+        return CraterErrorNodeGen::create;
+    }
+
     @Specialization
     Object doExecute(
         Object[] arguments,

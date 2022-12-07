@@ -2,10 +2,14 @@ package org.craterlang.language.nodes.builtins.math;
 
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.dsl.Cached;
+import com.oracle.truffle.api.dsl.GeneratePackagePrivate;
 import com.oracle.truffle.api.dsl.Specialization;
 import org.craterlang.language.nodes.CraterForceIntoDoubleNode;
 import org.craterlang.language.nodes.builtins.CraterUnaryBuiltinBodyNode;
 
+import java.util.function.Supplier;
+
+@GeneratePackagePrivate
 public abstract class CraterACosNode extends CraterUnaryBuiltinBodyNode {
     @Specialization
     double doExecute(Object argument, @Cached CraterForceIntoDoubleNode forceIntoDoubleNode) {
@@ -15,5 +19,9 @@ public abstract class CraterACosNode extends CraterUnaryBuiltinBodyNode {
     @TruffleBoundary(allowInlining = true)
     private static double boundary(double x) {
         return Math.acos(x);
+    }
+
+    public static Supplier<CraterACosNode> getFactory() {
+        return CraterACosNodeGen::create;
     }
 }

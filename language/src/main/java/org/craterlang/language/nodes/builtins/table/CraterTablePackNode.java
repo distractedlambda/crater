@@ -3,17 +3,24 @@ package org.craterlang.language.nodes.builtins.table;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.Fallback;
+import com.oracle.truffle.api.dsl.GeneratePackagePrivate;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.library.CachedLibrary;
 import com.oracle.truffle.api.nodes.ExplodeLoop;
 import com.oracle.truffle.api.object.DynamicObjectLibrary;
 import org.craterlang.language.CraterNode;
-import org.craterlang.language.nodes.builtins.CraterBuiltinBodyNode;
+import org.craterlang.language.nodes.builtins.CraterBuiltinFunctionBodyNode;
 import org.craterlang.language.runtime.CraterTable;
 
 import java.util.Arrays;
+import java.util.function.Supplier;
 
-public abstract class CraterTablePackNode extends CraterBuiltinBodyNode {
+@GeneratePackagePrivate
+public abstract class CraterTablePackNode extends CraterBuiltinFunctionBodyNode {
+    public static Supplier<CraterTablePackNode> getFactory() {
+        return CraterTablePackNodeGen::create;
+    }
+
     @Specialization
     CraterTable doExecute(
         Object[] arguments,

@@ -8,16 +8,16 @@ import org.craterlang.language.nodes.CraterFunctionRootNode;
 
 import java.util.function.Supplier;
 
-public final class CraterBuiltinRootNode extends CraterFunctionRootNode {
-    private final Supplier<CraterBuiltinBodyNode> bodyNodeFactory;
-    @Child private CraterBuiltinBodyNode bodyNode;
+public final class CraterBuiltinFunctionRootNode extends CraterFunctionRootNode {
+    private final Supplier<CraterBuiltinFunctionBodyNode> bodyNodeFactory;
+    @Child private CraterBuiltinFunctionBodyNode bodyNode;
     private final IntValueProfile argumentsLengthProfile;
 
-    public CraterBuiltinRootNode(
+    public CraterBuiltinFunctionRootNode(
         CraterLanguage language,
         String qualifiedName,
         String name,
-        Supplier<CraterBuiltinBodyNode> bodyNodeFactory
+        Supplier<CraterBuiltinFunctionBodyNode> bodyNodeFactory
     ) {
         super(language, null, null, qualifiedName, name);
         this.bodyNodeFactory = bodyNodeFactory;
@@ -32,7 +32,7 @@ public final class CraterBuiltinRootNode extends CraterFunctionRootNode {
     }
 
     @Override protected RootNode cloneUninitialized() {
-        return new CraterBuiltinRootNode(
+        return new CraterBuiltinFunctionRootNode(
             getLanguage(CraterLanguage.class),
             getQualifiedName(),
             getName(),

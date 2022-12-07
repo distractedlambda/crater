@@ -2,7 +2,6 @@ package org.craterlang.language;
 
 import com.oracle.truffle.api.Assumption;
 import com.oracle.truffle.api.CallTarget;
-import com.oracle.truffle.api.CompilerAsserts;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.TruffleLanguage;
@@ -126,7 +125,7 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
     private final TruffleString weakValueModeString = getLiteralString("v");
     private final TruffleString weakKeyAndValueModeString = getLiteralString("kv");
 
-    private final TruffleString nString = getLiteralString("n");
+    private final TruffleString lowercaseLetterNString = getLiteralString("n");
     private final TruffleString poundSignString = getLiteralString("#");
 
     private final TruffleString nanString = getLiteralString("nan");
@@ -142,7 +141,8 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
     }
 
     @Override protected CallTarget parse(ParsingRequest request) throws Exception {
-        return super.parse(request);
+        // TODO
+        return null;
     }
 
     public static CraterLanguage get(Node node) {
@@ -328,7 +328,7 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
     }
 
     public TruffleString getLowercaseLetterNString() {
-        return nString;
+        return lowercaseLetterNString;
     }
 
     public TruffleString getPoundSignString() {

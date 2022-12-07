@@ -41,5 +41,5 @@ public abstract class CraterFunctionRootNode extends RootNode {
 
     @Override protected abstract RootNode cloneUninitialized();
 
-    public static final int ARGUMENTS_START = 1;
+    protected static final int ARGUMENTS_START = 1;
 }

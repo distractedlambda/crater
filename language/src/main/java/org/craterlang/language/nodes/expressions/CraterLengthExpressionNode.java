@@ -2,6 +2,7 @@ package org.craterlang.language.nodes.expressions;
 
 import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.Fallback;
+import com.oracle.truffle.api.dsl.GeneratePackagePrivate;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.profiles.ConditionProfile;
 import com.oracle.truffle.api.strings.TruffleString;
@@ -13,7 +14,16 @@ import org.craterlang.language.runtime.CraterTable;
 import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
 import static org.craterlang.language.CraterTypeSystem.isNil;
 
+@GeneratePackagePrivate
 public abstract class CraterLengthExpressionNode extends CraterUnaryExpressionNode {
+    public static CraterLengthExpressionNode create(CraterExpressionNode operandNode) {
+        return CraterLengthExpressionNodeGen.create(operandNode);
+    }
+
+    @Override public CraterExpressionNode cloneUninitialized() {
+        return create(getOperandNode());
+    }
+
     @Specialization
     long doString(TruffleString operand) {
         return operand.byteLength(TruffleString.Encoding.BYTES);

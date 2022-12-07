@@ -2,15 +2,23 @@ package org.craterlang.language.nodes.builtins;
 
 import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.Fallback;
+import com.oracle.truffle.api.dsl.GeneratePackagePrivate;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.profiles.LongValueProfile;
 import com.oracle.truffle.api.strings.TruffleString;
 import org.craterlang.language.CraterNode;
 import org.craterlang.language.nodes.CraterForceIntoIntegerNode;
 
+import java.util.function.Supplier;
+
 import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
 
-public abstract class CraterSelectNode extends CraterBuiltinBodyNode {
+@GeneratePackagePrivate
+public abstract class CraterSelectNode extends CraterBuiltinFunctionBodyNode {
+    public static Supplier<CraterSelectNode> getFactory() {
+        return CraterSelectNodeGen::create;
+    }
+
     @Specialization
     Object doExecute(
         Object[] arguments,
