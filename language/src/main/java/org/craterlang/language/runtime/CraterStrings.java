@@ -1,6 +1,7 @@
 package org.craterlang.language.runtime;
 
 import com.oracle.truffle.api.dsl.Cached;
+import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.nodes.ControlFlowException;
 import com.oracle.truffle.api.profiles.IntValueProfile;
@@ -30,6 +31,7 @@ public final class CraterStrings {
         private static final NumberFormatException INSTANCE = new NumberFormatException();
     }
 
+    @GenerateUncached
     public static abstract class TrimWhitespaceNode extends CraterNode {
         public abstract TruffleString execute(TruffleString string, boolean lazy);
 
@@ -76,6 +78,7 @@ public final class CraterStrings {
         }
     }
 
+    @GenerateUncached
     public static abstract class ParseLongNode extends CraterNode {
         public abstract long execute(TruffleString string);
 
@@ -183,7 +186,27 @@ public final class CraterStrings {
         }
     }
 
+    @GenerateUncached
     public static abstract class ParseNumberNode extends CraterNode {
+        public abstract Object execute(TruffleString string);
 
+        @Specialization
+        Object doExecute(
+            TruffleString string,
+            @Cached ParseLongNode parseLongNode,
+            @Cached TruffleString.ParseDoubleNode parseDoubleNode
+        ) {
+            try {
+                return parseLongNode.execute(string);
+            }
+            catch (NumberFormatException ignored) {}
+
+            try {
+                return parseDoubleNode.execute(string);
+            }
+            catch (TruffleString.NumberFormatException exception) {
+                throw NumberFormatException.getInstance();
+            }
+        }
     }
 }
