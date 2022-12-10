@@ -50,6 +50,10 @@ public final class CraterString implements TruffleObject {
         return EqualsNode.getUncached().execute(this, other);
     }
 
+    @Override public int hashCode() {
+        return HashCodeNode.getUncached().execute(this);
+    }
+
     @TruffleBoundary
     @Override public String toString() {
         forceUncached();
