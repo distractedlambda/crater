@@ -14,7 +14,7 @@ import com.oracle.truffle.api.strings.TruffleString;
 import com.oracle.truffle.api.strings.TruffleStringBuilder;
 import org.craterlang.language.CraterLanguage;
 import org.craterlang.language.CraterNode;
-import org.craterlang.language.nodes.CraterForceIntoIntegerNode;
+import org.craterlang.language.nodes.CraterForceIntoLongNode;
 import org.craterlang.language.runtime.CraterNil;
 
 import java.util.function.Supplier;
@@ -33,7 +33,7 @@ public abstract class CraterErrorNode extends CraterBuiltinFunctionBodyNode {
         int argumentsStart,
         int argumentsLength,
         @Cached ConditionProfile levelIsNilProfile,
-        @Cached CraterForceIntoIntegerNode forceLevelIntoIntegerNode,
+        @Cached CraterForceIntoLongNode forceLevelIntoIntegerNode,
         @Cached AddLocationToMessageNode addLocationToMessageNode
     ) {
         var message = argumentsLength > 0 ? arguments[argumentsStart] : CraterNil.getInstance();

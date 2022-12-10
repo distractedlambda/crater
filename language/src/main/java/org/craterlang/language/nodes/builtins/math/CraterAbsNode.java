@@ -11,6 +11,8 @@ import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
 
 @GeneratePackagePrivate
 public abstract class CraterAbsNode extends CraterUnaryBuiltinBodyNode {
+    // FIXME: handle numeric string arguments
+
     @Specialization
     long doLong(long argument) {
         return Math.abs(argument);
