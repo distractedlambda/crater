@@ -1,5 +1,8 @@
 package org.craterlang.language.runtime;
 
+import com.oracle.truffle.api.ArrayUtils;
+import com.oracle.truffle.api.CompilerDirectives;
+import com.oracle.truffle.api.CompilerDirectives.CompilationFinal;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.dsl.Bind;
 import com.oracle.truffle.api.dsl.Cached;
@@ -8,19 +11,29 @@ import com.oracle.truffle.api.dsl.GeneratePackagePrivate;
 import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.interop.TruffleObject;
+import com.oracle.truffle.api.memory.ByteArraySupport;
+import com.oracle.truffle.api.nodes.ControlFlowException;
 import com.oracle.truffle.api.nodes.ExplodeLoop;
 import com.oracle.truffle.api.profiles.BranchProfile;
 import com.oracle.truffle.api.profiles.ConditionProfile;
 import com.oracle.truffle.api.profiles.IntValueProfile;
+import com.oracle.truffle.api.strings.TruffleString;
 import org.craterlang.language.CraterNode;
+import org.craterlang.language.nodes.CraterPathProfile;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.EmptyStackException;
 
 import static com.oracle.truffle.api.CompilerDirectives.castExact;
 import static com.oracle.truffle.api.CompilerDirectives.isExact;
+import static com.oracle.truffle.api.CompilerDirectives.shouldNotReachHere;
 import static java.lang.Double.isNaN;
 import static java.lang.Double.longBitsToDouble;
+import static java.lang.Math.addExact;
+import static java.lang.Math.decrementExact;
+import static java.lang.Math.incrementExact;
+import static java.lang.Math.multiplyExact;
 import static java.lang.System.arraycopy;
 import static org.craterlang.language.runtime.CraterMath.hasExactLongValue;
 
@@ -35,6 +48,12 @@ public final class CraterString implements TruffleObject {
     private static final byte TAG_LAZY_CONCAT = 1;
     private static final byte TAG_LAZY_REPEAT = 2;
     private static final byte TAG_LAZY_REVERSE = 3;
+
+    public static final class NumberFormatException extends ControlFlowException {
+        private NumberFormatException() {}
+
+        private static final NumberFormatException INSTANCE = new NumberFormatException();
+    }
 
     @TruffleBoundary
     public void forceUncached() {
@@ -505,4 +524,212 @@ public final class CraterString implements TruffleObject {
             return nodes;
         }
     }
+
+    @GenerateUncached
+    @GeneratePackagePrivate
+    public static abstract class ParseNumberNode extends CraterNode {
+        public abstract Object execute(CraterString string);
+
+        @Specialization(guards = "string.isLazyLong()")
+        long doLazyLong(CraterString string) {
+            return string.getLazyLongValue();
+        }
+
+        @Specialization(guards = "string.isLazyDouble()")
+        double doLazyDouble(CraterString string) {
+            return string.getLazyDoubleValue();
+        }
+    }
+
+    private static boolean isWhitespace(byte b) {
+        return switch (b) {
+            case ' ', '\t', '\r', '\n', '\f', '\u000b' -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean isDecDigit(byte b) {
+        return b >= '0' && b <= '9';
+    }
+
+    private static boolean isHexDigit(byte b) {
+        return (b >= '0' && b <= '9') || (b >= 'a' && b <= 'f') || (b >= 'A' && b <= 'F');
+    }
+
+    private static int decDigitValue(byte b) {
+        return b - '0';
+    }
+
+    private static int hexDigitValue(byte b) {
+        return switch (b) {
+            case '0' -> 0;
+            case '1' -> 1;
+            case '2' -> 2;
+            case '3' -> 3;
+            case '4' -> 4;
+            case '5' -> 5;
+            case '6' -> 6;
+            case '7' -> 7;
+            case '8' -> 8;
+            case '9' -> 9;
+            case 'a', 'A' -> 10;
+            case 'b', 'B' -> 11;
+            case 'c', 'C' -> 12;
+            case 'd', 'D' -> 13;
+            case 'e', 'E' -> 14;
+            case 'f', 'F' -> 15;
+            default -> throw shouldNotReachHere();
+        };
+    }
+
+    private static long parseLong(
+        byte[] bytes,
+        int offset,
+        boolean negative
+    ) throws NumberFormatException {
+        var value = 0L;
+        var empty = true;
+
+        if (bytes.length - offset >= 2) {
+            if (bytes[offset] == '0' && (bytes[offset + 1] == 'x' || bytes[offset + 1] == 'X')) {
+                offset += 2;
+                for (; offset < bytes.length && isHexDigit(bytes[offset]); offset++) {
+                    value = value * 16 + hexDigitValue(bytes[offset]);
+                    empty = false;
+                }
+            }
+        }
+        else for (; offset < bytes.length && isDecDigit(bytes[offset]); offset++) {
+            var digitValue = decDigitValue(bytes[offset]);
+
+            try {
+                value = addExact(multiplyExact(value, 10), negative ? -digitValue : digitValue);
+            }
+            catch (ArithmeticException exception) {
+                throw NumberFormatException.INSTANCE;
+            }
+
+            empty = false;
+        }
+
+        if (empty) {
+            throw NumberFormatException.INSTANCE;
+        }
+
+        while (offset < bytes.length && isWhitespace(bytes[offset])) {
+            offset++;
+        }
+
+        if (offset != bytes.length) {
+            throw NumberFormatException.INSTANCE;
+        }
+
+        return value;
+    }
+
+    private static double parseDouble(byte[] bytes, int offset, boolean negative) {
+        Double.parseDouble()
+    }
+
+    // private static double parseDouble(
+    //     byte[] bytes,
+    //     int offset,
+    //     boolean negative
+    // ) throws NumberFormatException {
+    //     var specialCharOffset = ArrayUtils.indexOf(
+    //         bytes,
+    //         offset,
+    //         bytes.length,
+    //         (byte) '.', (byte) 'x', (byte) 'X', (byte) 'n', (byte) 'N'
+    //     );
+
+    //     if (specialCharOffset != -1) switch (bytes[specialCharOffset]) {
+    //         case 'n', 'N' -> {
+    //             throw NumberFormatException.INSTANCE;
+    //         }
+
+    //         case 'x', 'X' -> {
+    //             return parseHexDouble(bytes, offset, negative);
+    //         }
+    //     }
+
+    //     return parseDecDouble(bytes, offset, negative);
+    // }
+
+    // private static double parseDecDouble(byte[] bytes, int offset, boolean negative) {
+
+    // }
+
+    // private static double parseHexDouble(byte[] bytes, int offset, boolean negative) {
+    //     var result = 0.0;
+    //     var significantDigits = 0;
+    //     var nonSignificantDigits = 0;
+    //     var exponentCorrection = 0;
+    //     boolean hasDot = false;
+
+    //     if (bytes.length - offset < 2) {
+    //         throw NumberFormatException.INSTANCE;
+    //     }
+
+    //     if (bytes[offset++] != '0') {
+    //         throw NumberFormatException.INSTANCE;
+    //     }
+
+    //     if (bytes[offset] != 'x' && bytes[offset] != 'X') {
+    //         throw NumberFormatException.INSTANCE;
+    //     }
+
+    //     offset++;
+
+    //     for (; offset < bytes.length; offset++) {
+    //         if (bytes[offset] == '.') {
+    //             if (hasDot) {
+    //                 break;
+    //             }
+    //             else {
+    //                 hasDot = true;
+    //             }
+    //         }
+    //         else if (isHexDigit(bytes[offset])) {
+    //             if (significantDigits == 0 && bytes[offset] == '0') {
+    //                 nonSignificantDigits = incrementExact(nonSignificantDigits);
+    //             }
+    //             else {
+    //                 significantDigits = incrementExact(significantDigits);
+    //                 if (significantDigits <= MAX_SIGNIFICANT_DIGITS) {
+    //                     result = result * 16.0 + hexDigitValue(bytes[offset]);
+    //                 }
+    //                 else {
+    //                     exponentCorrection = incrementExact(exponentCorrection);
+    //                 }
+    //             }
+
+    //             if (hasDot) {
+    //                 exponentCorrection = decrementExact(exponentCorrection);
+    //             }
+    //         }
+    //         else {
+    //             break;
+    //         }
+    //     }
+
+    //     if (nonSignificantDigits == 0 && significantDigits == 0) {
+    //         throw NumberFormatException.INSTANCE;
+    //     }
+
+    //     exponentCorrection = multiplyExact(exponentCorrection, 4);
+
+    //     if (offset < bytes.length && (bytes[offset] == 'p' || bytes[offset] == 'P')) {
+    //         var exponentValue = 0;
+    //         var
+    //     }
+
+    // }
+
+    private static int MAX_SIGNIFICANT_DIGITS = 30;
+
+    @CompilationFinal(dimensions = 1)
+    private static final byte[] DOUBLE_SPECIAL_CHARS = new byte[]{'.', 'x', 'X', 'n', 'N'};
+
+    private static final ByteArraySupport LE_SUPPORT = ByteArraySupport.littleEndian();
 }

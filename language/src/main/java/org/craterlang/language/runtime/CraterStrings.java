@@ -7,7 +7,7 @@ import com.oracle.truffle.api.nodes.ControlFlowException;
 import com.oracle.truffle.api.profiles.IntValueProfile;
 import com.oracle.truffle.api.strings.TruffleString;
 import org.craterlang.language.CraterNode;
-import org.craterlang.language.nodes.CraterPathProfileNode;
+import org.craterlang.language.nodes.CraterPathProfile;
 
 public final class CraterStrings {
     private CraterStrings() {}
@@ -42,37 +42,37 @@ public final class CraterStrings {
             @Cached TruffleString.MaterializeNode materializeNode,
             @Cached TruffleString.ReadByteNode readByteNode,
             @Cached TruffleString.SubstringByteIndexNode substringNode,
-            @Cached CraterPathProfileNode pathProfileNode
+            @Cached CraterPathProfile pathProfile
         ) {
             if (string.isEmpty()) {
-                pathProfileNode.execute(0);
+                pathProfile.enter(0);
                 return string;
             }
 
-            pathProfileNode.execute(1);
+            pathProfile.enter(1);
 
             materializeNode.execute(string, ENCODING);
             var length = string.byteLength(ENCODING);
 
             var lhs = 0;
             while (lhs < length) {
-                pathProfileNode.execute(2);
+                pathProfile.enter(2);
                 if (!isWhitespace((byte) readByteNode.execute(string, lhs++, ENCODING))) {
                     break;
                 }
             }
 
-            pathProfileNode.execute(3);
+            pathProfile.enter(3);
 
             var rhs = length;
             while (rhs > lhs) {
-                pathProfileNode.execute(4);
+                pathProfile.enter(4);
                 if (!isWhitespace((byte) readByteNode.execute(string, --rhs, ENCODING))) {
                     break;
                 }
             }
 
-            pathProfileNode.execute(5);
+            pathProfile.enter(5);
 
             return substringNode.execute(string, lhs, rhs - lhs, ENCODING, lazy);
         }
@@ -88,25 +88,25 @@ public final class CraterStrings {
             @Cached TrimWhitespaceNode trimWhitespaceNode,
             @Cached TruffleString.ParseLongNode parseDecNode,
             @Cached TruffleString.ReadByteNode readByteNode,
-            @Cached CraterPathProfileNode pathProfileNode,
+            @Cached CraterPathProfile pathProfile,
             @Cached IntValueProfile lengthProfile
         ) {
             string = trimWhitespaceNode.execute(string, true);
 
             if (string.isEmpty()) {
-                pathProfileNode.execute(0);
+                pathProfile.enter(0);
                 throw NumberFormatException.getInstance();
             }
 
-            pathProfileNode.execute(1);
+            pathProfile.enter(1);
 
             try {
                 var result = parseDecNode.execute(string, 10);
-                pathProfileNode.execute(2);
+                pathProfile.enter(2);
                 return result;
             }
             catch (TruffleString.NumberFormatException ignored) {
-                pathProfileNode.execute(3);
+                pathProfile.enter(3);
             }
 
             var length = lengthProfile.profile(string.byteLength(ENCODING));
@@ -115,31 +115,31 @@ public final class CraterStrings {
 
             switch (readByteNode.execute(string, i, ENCODING)) {
                 case '-':
-                    pathProfileNode.execute(4);
+                    pathProfile.enter(4);
                     negative = true;
                 case '+':
-                    pathProfileNode.execute(5);
+                    pathProfile.enter(5);
                     if (++i >= length) {
-                        pathProfileNode.execute(6);
+                        pathProfile.enter(6);
                         throw NumberFormatException.getInstance();
                     }
             }
 
-            pathProfileNode.execute(7);
+            pathProfile.enter(7);
 
             if (readByteNode.execute(string, i++, ENCODING) != '0' || i >= length) {
-                pathProfileNode.execute(8);
+                pathProfile.enter(8);
                 throw NumberFormatException.getInstance();
             }
 
             switch (readByteNode.execute(string, i++, ENCODING)) {
                 case 'x', 'X' -> {
-                    pathProfileNode.execute(9);
+                    pathProfile.enter(9);
 
                     var total = 0L;
 
                     if (i >= length) {
-                        pathProfileNode.execute(10);
+                        pathProfile.enter(10);
                         throw NumberFormatException.getInstance();
                     }
 
@@ -162,24 +162,24 @@ public final class CraterStrings {
                             case 'e', 'E' -> 14;
                             case 'f', 'F' -> 15;
                             default -> {
-                                pathProfileNode.execute(11);
+                                pathProfile.enter(11);
                                 throw NumberFormatException.getInstance();
                             }
                         };
 
-                        pathProfileNode.execute(12);
+                        pathProfile.enter(12);
 
                         total *= 16;
                         total += negative ? -digitValue : digitValue;
                     }
 
-                    pathProfileNode.execute(13);
+                    pathProfile.enter(13);
 
                     return total;
                 }
 
                 default -> {
-                    pathProfileNode.execute(14);
+                    pathProfile.enter(14);
                     throw NumberFormatException.getInstance();
                 }
             }
