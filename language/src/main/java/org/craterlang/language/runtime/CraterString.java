@@ -1,8 +1,5 @@
 package org.craterlang.language.runtime;
 
-import com.oracle.truffle.api.ArrayUtils;
-import com.oracle.truffle.api.CompilerDirectives;
-import com.oracle.truffle.api.CompilerDirectives.CompilationFinal;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.dsl.Bind;
 import com.oracle.truffle.api.dsl.Cached;
@@ -17,13 +14,14 @@ import com.oracle.truffle.api.nodes.ExplodeLoop;
 import com.oracle.truffle.api.profiles.BranchProfile;
 import com.oracle.truffle.api.profiles.ConditionProfile;
 import com.oracle.truffle.api.profiles.IntValueProfile;
-import com.oracle.truffle.api.strings.TruffleString;
 import org.craterlang.language.CraterNode;
-import org.craterlang.language.nodes.CraterPathProfile;
 
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.EmptyStackException;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 
 import static com.oracle.truffle.api.CompilerDirectives.castExact;
 import static com.oracle.truffle.api.CompilerDirectives.isExact;
@@ -31,8 +29,6 @@ import static com.oracle.truffle.api.CompilerDirectives.shouldNotReachHere;
 import static java.lang.Double.isNaN;
 import static java.lang.Double.longBitsToDouble;
 import static java.lang.Math.addExact;
-import static java.lang.Math.decrementExact;
-import static java.lang.Math.incrementExact;
 import static java.lang.Math.multiplyExact;
 import static java.lang.System.arraycopy;
 import static org.craterlang.language.runtime.CraterMath.hasExactLongValue;
@@ -627,109 +623,6 @@ public final class CraterString implements TruffleObject {
         return value;
     }
 
-    private static double parseDouble(byte[] bytes, int offset, boolean negative) {
-        Double.parseDouble()
-    }
-
-    // private static double parseDouble(
-    //     byte[] bytes,
-    //     int offset,
-    //     boolean negative
-    // ) throws NumberFormatException {
-    //     var specialCharOffset = ArrayUtils.indexOf(
-    //         bytes,
-    //         offset,
-    //         bytes.length,
-    //         (byte) '.', (byte) 'x', (byte) 'X', (byte) 'n', (byte) 'N'
-    //     );
-
-    //     if (specialCharOffset != -1) switch (bytes[specialCharOffset]) {
-    //         case 'n', 'N' -> {
-    //             throw NumberFormatException.INSTANCE;
-    //         }
-
-    //         case 'x', 'X' -> {
-    //             return parseHexDouble(bytes, offset, negative);
-    //         }
-    //     }
-
-    //     return parseDecDouble(bytes, offset, negative);
-    // }
-
-    // private static double parseDecDouble(byte[] bytes, int offset, boolean negative) {
-
-    // }
-
-    // private static double parseHexDouble(byte[] bytes, int offset, boolean negative) {
-    //     var result = 0.0;
-    //     var significantDigits = 0;
-    //     var nonSignificantDigits = 0;
-    //     var exponentCorrection = 0;
-    //     boolean hasDot = false;
-
-    //     if (bytes.length - offset < 2) {
-    //         throw NumberFormatException.INSTANCE;
-    //     }
-
-    //     if (bytes[offset++] != '0') {
-    //         throw NumberFormatException.INSTANCE;
-    //     }
-
-    //     if (bytes[offset] != 'x' && bytes[offset] != 'X') {
-    //         throw NumberFormatException.INSTANCE;
-    //     }
-
-    //     offset++;
-
-    //     for (; offset < bytes.length; offset++) {
-    //         if (bytes[offset] == '.') {
-    //             if (hasDot) {
-    //                 break;
-    //             }
-    //             else {
-    //                 hasDot = true;
-    //             }
-    //         }
-    //         else if (isHexDigit(bytes[offset])) {
-    //             if (significantDigits == 0 && bytes[offset] == '0') {
-    //                 nonSignificantDigits = incrementExact(nonSignificantDigits);
-    //             }
-    //             else {
-    //                 significantDigits = incrementExact(significantDigits);
-    //                 if (significantDigits <= MAX_SIGNIFICANT_DIGITS) {
-    //                     result = result * 16.0 + hexDigitValue(bytes[offset]);
-    //                 }
-    //                 else {
-    //                     exponentCorrection = incrementExact(exponentCorrection);
-    //                 }
-    //             }
-
-    //             if (hasDot) {
-    //                 exponentCorrection = decrementExact(exponentCorrection);
-    //             }
-    //         }
-    //         else {
-    //             break;
-    //         }
-    //     }
-
-    //     if (nonSignificantDigits == 0 && significantDigits == 0) {
-    //         throw NumberFormatException.INSTANCE;
-    //     }
-
-    //     exponentCorrection = multiplyExact(exponentCorrection, 4);
-
-    //     if (offset < bytes.length && (bytes[offset] == 'p' || bytes[offset] == 'P')) {
-    //         var exponentValue = 0;
-    //         var
-    //     }
-
-    // }
-
-    private static int MAX_SIGNIFICANT_DIGITS = 30;
-
-    @CompilationFinal(dimensions = 1)
-    private static final byte[] DOUBLE_SPECIAL_CHARS = new byte[]{'.', 'x', 'X', 'n', 'N'};
-
     private static final ByteArraySupport LE_SUPPORT = ByteArraySupport.littleEndian();
+    private static final ByteArraySupport BE_SUPPORT = ByteArraySupport.bigEndian();
 }
