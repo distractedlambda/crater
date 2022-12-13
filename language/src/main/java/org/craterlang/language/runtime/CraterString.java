@@ -14,13 +14,16 @@ import com.oracle.truffle.api.profiles.BranchProfile;
 import com.oracle.truffle.api.profiles.ConditionProfile;
 import com.oracle.truffle.api.profiles.IntValueProfile;
 import org.craterlang.language.CraterNode;
+import org.craterlang.language.nodes.CraterPathProfile;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 import static com.oracle.truffle.api.ArrayUtils.indexOf;
+import static com.oracle.truffle.api.CompilerAsserts.neverPartOfCompilation;
 import static com.oracle.truffle.api.CompilerDirectives.castExact;
 import static com.oracle.truffle.api.CompilerDirectives.isExact;
+import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
 import static java.lang.Double.isNaN;
 import static java.lang.Double.longBitsToDouble;
 import static java.lang.Math.addExact;
@@ -516,6 +519,14 @@ public final class CraterString implements TruffleObject {
     public static abstract class ParseNumberNode extends CraterNode {
         public abstract Object execute(CraterString string);
 
+        public static ParseNumberNode create() {
+            return CraterStringFactory.ParseNumberNodeGen.create();
+        }
+
+        public static ParseNumberNode getUncached() {
+            return CraterStringFactory.ParseNumberNodeGen.getUncached();
+        }
+
         @Specialization(guards = "string.isLazyLong()")
         long doLazyLong(CraterString string) {
             return string.getLazyLongValue();
@@ -527,7 +538,105 @@ public final class CraterString implements TruffleObject {
         }
 
         @Fallback
-        Object doOther(CraterString string, @Cached ForceNode forceNode) {
+        Object doForceAndParse(CraterString string, @Cached ForceAndParseNode forceAndParseNode) {
+            return forceAndParseNode.execute(string);
+        }
+
+        @GenerateUncached
+        static abstract class ForceAndParseNode extends CraterNode {
+            abstract Object execute(CraterString string);
+
+            @Specialization(guards = "string == cachedString")
+            Object doConstant(
+                CraterString string,
+                @Cached(value = "string", weak = true) CraterString cachedString,
+                @Cached("parseForCache(string)") Object parsed
+            ) {
+                return parsed;
+            }
+
+            @Specialization(replaces = "doConstant")
+            Object doDynamic(CraterString string, @Cached ForceNode forceNode) {
+                forceNode.execute(string);
+
+                var result = parseNumber(string.getImmediateBytes());
+
+                if (result == null) {
+                    transferToInterpreter();
+                    throw error("");
+                }
+
+                return result;
+            }
+
+            Object parseForCache(CraterString string) {
+                neverPartOfCompilation();
+
+                string.forceUncached();
+                var result = parseNumber(string.getImmediateBytes());
+
+                if (result == null) {
+                    throw error("");
+                }
+
+                return result;
+            }
+        }
+    }
+
+    @GenerateUncached
+    @GeneratePackagePrivate
+    public static abstract class ParseLongNode extends CraterNode {
+        public abstract long execute(CraterString string);
+
+        public static ParseLongNode create() {
+            return CraterStringFactory.ParseLongNodeGen.create();
+        }
+
+        public static ParseLongNode getUncached() {
+            return CraterStringFactory.ParseLongNodeGen.getUncached();
+        }
+
+        @Specialization
+        long doExecute(CraterString string, @Cached ParseNumberNode parseNumberNode) {
+            if (parseNumberNode.execute(string) instanceof Long result) {
+                return result;
+            }
+            else {
+                transferToInterpreter();
+                throw error("");
+            }
+        }
+    }
+
+    @GenerateUncached
+    @GeneratePackagePrivate
+    public static abstract class ParseDoubleNode extends CraterNode {
+        public abstract double execute(CraterString string);
+
+        public static ParseDoubleNode create() {
+            return CraterStringFactory.ParseDoubleNodeGen.create();
+        }
+
+        public static ParseDoubleNode getUncached() {
+            return CraterStringFactory.ParseDoubleNodeGen.getUncached();
+        }
+
+        @Specialization
+        double doExecute(
+            CraterString string,
+            @Cached ParseNumberNode parseNumberNode,
+            @Cached CraterPathProfile pathProfile
+        ) {
+            var result = parseNumberNode.execute(string);
+            if (result instanceof Long) {
+                pathProfile.enter(0);
+                return (long) result;
+            }
+            else {
+                pathProfile.enter(1);
+                return (double) result;
+            }
         }
     }
 
