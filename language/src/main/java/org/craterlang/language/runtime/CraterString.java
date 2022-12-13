@@ -1,5 +1,6 @@
 package org.craterlang.language.runtime;
 
+import ch.randelshofer.fastdoubleparser.JavaDoubleParser;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.dsl.Bind;
 import com.oracle.truffle.api.dsl.Cached;
@@ -8,24 +9,23 @@ import com.oracle.truffle.api.dsl.GeneratePackagePrivate;
 import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.interop.TruffleObject;
-import com.oracle.truffle.api.nodes.ControlFlowException;
 import com.oracle.truffle.api.nodes.ExplodeLoop;
 import com.oracle.truffle.api.profiles.BranchProfile;
 import com.oracle.truffle.api.profiles.ConditionProfile;
 import com.oracle.truffle.api.profiles.IntValueProfile;
 import org.craterlang.language.CraterNode;
-import org.craterlang.language.nodes.CraterPathProfile;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
+import static com.oracle.truffle.api.ArrayUtils.indexOf;
 import static com.oracle.truffle.api.CompilerDirectives.castExact;
 import static com.oracle.truffle.api.CompilerDirectives.isExact;
-import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
 import static java.lang.Double.isNaN;
 import static java.lang.Double.longBitsToDouble;
 import static java.lang.Math.addExact;
 import static java.lang.Math.multiplyExact;
+import static java.lang.Math.subtractExact;
 import static java.lang.System.arraycopy;
 import static org.craterlang.language.runtime.CraterMath.hasExactLongValue;
 
@@ -40,12 +40,6 @@ public final class CraterString implements TruffleObject {
     private static final byte TAG_LAZY_CONCAT = 1;
     private static final byte TAG_LAZY_REPEAT = 2;
     private static final byte TAG_LAZY_REVERSE = 3;
-
-    public static final class NumberFormatException extends ControlFlowException {
-        private NumberFormatException() {}
-
-        private static final NumberFormatException INSTANCE = new NumberFormatException();
-    }
 
     @TruffleBoundary
     public void forceUncached() {
@@ -533,164 +527,396 @@ public final class CraterString implements TruffleObject {
         }
 
         @Fallback
-        Object doOther(CraterString string, @Cached ForceNode forceNode, @Cached CraterPathProfile pathProfile) {
-            forceNode.execute(string);
+        Object doOther(CraterString string, @Cached ForceNode forceNode) {
+        }
+    }
 
-            var bytes = string.getImmediateBytes();
-            int start, end;
-
-            try {
-                start = findNumberStart(bytes);
-                end = findNumberEnd(bytes);
-            }
-            catch (NumberFormatException exception) {
-                transferToInterpreter();
-                throw error("");
-            }
-
-            try {
-                var result = parseLong(bytes, start, end);
-                pathProfile.enter(0);
-                return result;
-            }
-            catch (NumberFormatException exception) {
-                pathProfile.enter(1);
-            }
-
-            // TODO
+    @TruffleBoundary
+    private static Object parseNumber(byte[] bytes) {
+        if (bytes.length == 0) {
             return null;
         }
-    }
 
-    private static double parseDouble(byte[] bytes, int offset, int end) throws NumberFormatException {
+        var start = 0;
+        var negative = false;
 
-    }
+        findStart:
+        for (;;) {
+            switch (bytes[start]) {
+                case ' ':
+                case '\r':
+                case '\n':
+                case '\t':
+                case '\f':
+                case 0x0b:
+                    if (++start == bytes.length) {
+                        return null;
+                    }
+                    break;
 
-    @TruffleBoundary(allowInlining = true)
-    private static long parseLong(byte[] bytes, int offset, int end) throws NumberFormatException {
-        if (offset == end) {
-            throw NumberFormatException.INSTANCE;
+                case '-':
+                    negative = true;
+                case '+':
+                    if (++start == bytes.length) {
+                        return null;
+                    }
+                default:
+                    break findStart;
+            }
         }
 
-        var signum = 1L;
+        var end = bytes.length;
 
-        switch (bytes[offset]) {
-            case '-':
-                signum = -1L;
-            case '+':
-                if (++offset == end) {
-                    throw NumberFormatException.INSTANCE;
+        findEnd:
+        for (;;) {
+            switch (bytes[end - 1]) {
+                case ' ':
+                case '\r':
+                case '\n':
+                case '\t':
+                case '\f':
+                case 0x0b:
+                    end--;
+                    break;
+
+                default:
+                    break findEnd;
+            }
+        }
+
+        if (start == end) {
+            return null;
+        }
+
+        if (bytes[start] == '0') {
+            if (++start == end) {
+                return 0L;
+            }
+
+            if (bytes[start] == 'x' || bytes[start] == 'X') {
+                if (++start == end) {
+                    return null;
                 }
+
+                return parseHexNumber(bytes, start, end, negative);
+            }
         }
 
-        if (bytes[offset] == '0') {
-            if (++offset == end) {
-                return 0;
-            }
+        return parseDecNumber(bytes, start, end, negative);
+    }
 
-            if (bytes[offset] == 'x' || bytes[offset] == 'X') {
-                if (++offset == end) {
-                    throw NumberFormatException.INSTANCE;
+    private static Object parseDecNumber(byte[] bytes, int start, int end, boolean negative) {
+        var offset = start;
+
+        tryInteger:
+        for (;;) {
+            long total;
+
+            if (negative) {
+                switch (bytes[offset]) {
+                    case '0' -> total = -0;
+                    case '1' -> total = -1;
+                    case '2' -> total = -2;
+                    case '3' -> total = -3;
+                    case '4' -> total = -4;
+                    case '5' -> total = -5;
+                    case '6' -> total = -6;
+                    case '7' -> total = -7;
+                    case '8' -> total = -8;
+                    case '9' -> total = -9;
+
+                    case '.', 'e', 'E' -> {
+                        break tryInteger;
+                    }
+
+                    default -> {
+                        return null;
+                    }
                 }
 
-                var value = hexDigitValue(bytes[offset++]) * signum;
+                while (++offset < end) {
+                    int digitValue;
 
-                while (offset < end) {
-                    value *= 16;
-                    value += hexDigitValue(bytes[offset++]) * signum;
+                    switch (bytes[offset]) {
+                        case '0' -> digitValue = 0;
+                        case '1' -> digitValue = 1;
+                        case '2' -> digitValue = 2;
+                        case '3' -> digitValue = 3;
+                        case '4' -> digitValue = 4;
+                        case '5' -> digitValue = 5;
+                        case '6' -> digitValue = 6;
+                        case '7' -> digitValue = 7;
+                        case '8' -> digitValue = 8;
+                        case '9' -> digitValue = 9;
+
+                        case '.', 'e', 'E' -> {
+                            break tryInteger;
+                        }
+
+                        default -> {
+                            return null;
+                        }
+                    }
+
+                    try {
+                        total = subtractExact(multiplyExact(total, 10), digitValue);
+                    }
+                    catch (ArithmeticException exception) {
+                        break tryInteger;
+                    }
+                }
+            }
+            else {
+                switch (bytes[offset]) {
+                    case '0' -> total = 0;
+                    case '1' -> total = 1;
+                    case '2' -> total = 2;
+                    case '3' -> total = 3;
+                    case '4' -> total = 4;
+                    case '5' -> total = 5;
+                    case '6' -> total = 6;
+                    case '7' -> total = 7;
+                    case '8' -> total = 8;
+                    case '9' -> total = 9;
+
+                    case '.', 'e', 'E' -> {
+                        break tryInteger;
+                    }
+
+                    default -> {
+                        return null;
+                    }
                 }
 
-                return value;
+                while (++offset < end) {
+                    int digitValue;
+
+                    switch (bytes[offset]) {
+                        case '0' -> digitValue = 0;
+                        case '1' -> digitValue = 1;
+                        case '2' -> digitValue = 2;
+                        case '3' -> digitValue = 3;
+                        case '4' -> digitValue = 4;
+                        case '5' -> digitValue = 5;
+                        case '6' -> digitValue = 6;
+                        case '7' -> digitValue = 7;
+                        case '8' -> digitValue = 8;
+                        case '9' -> digitValue = 9;
+
+                        case '.', 'e', 'E' -> {
+                            break tryInteger;
+                        }
+
+                        default -> {
+                            return null;
+                        }
+                    }
+
+                    try {
+                        total = addExact(multiplyExact(total, 10), digitValue);
+                    }
+                    catch (ArithmeticException exception) {
+                        break tryInteger;
+                    }
+                }
+
+                return total;
             }
         }
 
-        var value = decDigitValue(bytes[offset++]) * signum;
+        // Check for a trailing type suffix, which Lua would not accept
+        if (isNotDecDigit(bytes[end - 1])) {
+            return null;
+        }
 
-        while (offset < end) {
-            try {
-                value = addExact(multiplyExact(value, 10), decDigitValue(bytes[offset++]) * signum);
+        double parsed;
+        try {
+            parsed = JavaDoubleParser.parseDouble(bytes, start, end - start);
+        }
+        catch (NumberFormatException exception) {
+            return null;
+        }
+
+        return negative ? -parsed : parsed;
+    }
+
+    private static Object parseHexNumber(byte[] bytes, int start, int end, boolean negative) {
+        var offset = start;
+
+        tryInteger:
+        for (;;) {
+            long total;
+
+            if (negative) {
+                switch (bytes[offset]) {
+                    case '0' -> total = -0;
+                    case '1' -> total = -1;
+                    case '2' -> total = -2;
+                    case '3' -> total = -3;
+                    case '4' -> total = -4;
+                    case '5' -> total = -5;
+                    case '6' -> total = -6;
+                    case '7' -> total = -7;
+                    case '8' -> total = -8;
+                    case '9' -> total = -9;
+                    case 'a', 'A' -> total = -10;
+                    case 'b', 'B' -> total = -11;
+                    case 'c', 'C' -> total = -12;
+                    case 'd', 'D' -> total = -13;
+                    case 'e', 'E' -> total = -14;
+                    case 'f', 'F' -> total = -15;
+
+                    case '.', 'p', 'P' -> {
+                        break tryInteger;
+                    }
+
+                    default -> {
+                        return null;
+                    }
+                }
+
+                while (++offset < end) {
+                    int digitValue;
+
+                    switch (bytes[offset]) {
+                        case '0' -> digitValue = 0;
+                        case '1' -> digitValue = 1;
+                        case '2' -> digitValue = 2;
+                        case '3' -> digitValue = 3;
+                        case '4' -> digitValue = 4;
+                        case '5' -> digitValue = 5;
+                        case '6' -> digitValue = 6;
+                        case '7' -> digitValue = 7;
+                        case '8' -> digitValue = 8;
+                        case '9' -> digitValue = 9;
+                        case 'a', 'A' -> digitValue = 10;
+                        case 'b', 'B' -> digitValue = 11;
+                        case 'c', 'C' -> digitValue = 12;
+                        case 'd', 'D' -> digitValue = 13;
+                        case 'e', 'E' -> digitValue = 14;
+                        case 'f', 'F' -> digitValue = 15;
+
+                        case '.', 'p', 'P' -> {
+                            break tryInteger;
+                        }
+
+                        default -> {
+                            return null;
+                        }
+                    }
+
+                    total *= 16;
+                    total -= digitValue;
+                }
             }
-            catch (ArithmeticException exception) {
-                throw NumberFormatException.INSTANCE;
+            else {
+                switch (bytes[offset]) {
+                    case '0' -> total = 0;
+                    case '1' -> total = 1;
+                    case '2' -> total = 2;
+                    case '3' -> total = 3;
+                    case '4' -> total = 4;
+                    case '5' -> total = 5;
+                    case '6' -> total = 6;
+                    case '7' -> total = 7;
+                    case '8' -> total = 8;
+                    case '9' -> total = 9;
+                    case 'a', 'A' -> total = 10;
+                    case 'b', 'B' -> total = 11;
+                    case 'c', 'C' -> total = 12;
+                    case 'd', 'D' -> total = 13;
+                    case 'e', 'E' -> total = 14;
+                    case 'f', 'F' -> total = 15;
+
+                    case '.', 'p', 'P' -> {
+                        break tryInteger;
+                    }
+
+                    default -> {
+                        return null;
+                    }
+                }
+
+                while (++offset < end) {
+                    int digitValue;
+
+                    switch (bytes[offset]) {
+                        case '0' -> digitValue = 0;
+                        case '1' -> digitValue = 1;
+                        case '2' -> digitValue = 2;
+                        case '3' -> digitValue = 3;
+                        case '4' -> digitValue = 4;
+                        case '5' -> digitValue = 5;
+                        case '6' -> digitValue = 6;
+                        case '7' -> digitValue = 7;
+                        case '8' -> digitValue = 8;
+                        case '9' -> digitValue = 9;
+                        case 'a', 'A' -> digitValue = 10;
+                        case 'b', 'B' -> digitValue = 11;
+                        case 'c', 'C' -> digitValue = 12;
+                        case 'd', 'D' -> digitValue = 13;
+                        case 'e', 'E' -> digitValue = 14;
+                        case 'f', 'F' -> digitValue = 15;
+
+                        case '.', 'p', 'P' -> {
+                            break tryInteger;
+                        }
+
+                        default -> {
+                            return null;
+                        }
+                    }
+
+                    total *= 16;
+                    total += digitValue;
+                }
+            }
+
+            return total;
+        }
+
+        if (bytes[offset] == '.') {
+            var exponentIndex = indexOf(bytes, offset + 1, end, (byte) 'p', (byte) 'P');
+            if (exponentIndex == -1) {
+                return parseHexFloatAfterAddingExponent(bytes, start, end, negative);
             }
         }
 
-        return value;
-    }
-
-    @TruffleBoundary(allowInlining = true)
-    private static int findNumberStart(byte[] bytes) throws NumberFormatException {
-        var i = 0;
-
-        while (i < bytes.length && leadingWhitespaceCheck(bytes[i])) {
-            i++;
+        // Check for a trailing type suffix, which Lua would not accept
+        if (isNotDecDigit(bytes[end - 1])) {
+            return null;
         }
 
-        return i;
-    }
-
-    @TruffleBoundary(allowInlining = true)
-    private static int findNumberEnd(byte[] bytes) throws NumberFormatException {
-        var i = bytes.length;
-
-        while (i > 0 && trailingWhitespaceCheck(bytes[i - 1])) {
-            i--;
+        double parsed;
+        try {
+            parsed = JavaDoubleParser.parseDouble(bytes, start - 2, end - start + 2);
+        }
+        catch (NumberFormatException exception) {
+            return null;
         }
 
-        return i;
+        return negative ? -parsed : parsed;
     }
 
-    private static boolean leadingWhitespaceCheck(byte b) throws NumberFormatException {
-        return switch (b) {
-            case ' ', '\t', '\r', '\n', '\f', '\u000b' -> true;
-            case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '-', '.' -> false;
-            default -> throw NumberFormatException.INSTANCE;
-        };
+    private static Object parseHexFloatAfterAddingExponent(byte[] bytes, int start, int end, boolean negative) {
+        var withExponent = new byte[end - start + 4];
+
+        arraycopy(bytes, start - 2, withExponent, 0, end - start + 2); // Include "0x" prefix
+        withExponent[withExponent.length - 2] = 'p';
+        withExponent[withExponent.length - 1] = '1';
+
+        double parsed;
+        try {
+            parsed = JavaDoubleParser.parseDouble(withExponent);
+        }
+        catch (NumberFormatException exception) {
+            return null;
+        }
+
+        return negative ? -parsed : parsed;
     }
 
-    private static boolean trailingWhitespaceCheck(byte b) throws NumberFormatException {
-        return switch (b) {
-            case ' ', '\t', '\r', '\n', '\f', '\u000b' -> true;
-            case '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'A', 'B', 'C', 'D', 'E', 'F' -> false;
-            default -> throw NumberFormatException.INSTANCE;
-        };
-    }
-
-    private static int decDigitValue(byte b) throws NumberFormatException {
-        return switch (b) {
-            case '0' -> 0;
-            case '1' -> 1;
-            case '2' -> 2;
-            case '3' -> 3;
-            case '4' -> 4;
-            case '5' -> 5;
-            case '6' -> 6;
-            case '7' -> 7;
-            case '8' -> 8;
-            case '9' -> 9;
-            default -> throw NumberFormatException.INSTANCE;
-        };
-    }
-
-    private static int hexDigitValue(byte b) throws NumberFormatException {
-        return switch (b) {
-            case '0' -> 0;
-            case '1' -> 1;
-            case '2' -> 2;
-            case '3' -> 3;
-            case '4' -> 4;
-            case '5' -> 5;
-            case '6' -> 6;
-            case '7' -> 7;
-            case '8' -> 8;
-            case '9' -> 9;
-            case 'a', 'A' -> 10;
-            case 'b', 'B' -> 11;
-            case 'c', 'C' -> 12;
-            case 'd', 'D' -> 13;
-            case 'e', 'E' -> 14;
-            case 'f', 'F' -> 15;
-            default -> throw NumberFormatException.INSTANCE;
-        };
+    private static boolean isNotDecDigit(byte b) {
+        return b < '0' || b > '9';
     }
 }
