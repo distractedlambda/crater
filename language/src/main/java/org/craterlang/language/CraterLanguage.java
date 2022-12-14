@@ -7,10 +7,10 @@ import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.TruffleLanguage;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.object.Shape;
-import com.oracle.truffle.api.strings.TruffleString;
 import com.oracle.truffle.api.utilities.AssumedValue;
 import org.craterlang.language.runtime.ConcurrentInternedSet;
 import org.craterlang.language.runtime.CraterNil;
+import org.craterlang.language.runtime.CraterString;
 import org.craterlang.language.runtime.CraterTable;
 
 import static com.oracle.truffle.api.CompilerAsserts.neverPartOfCompilation;
@@ -86,50 +86,50 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
         .layout(CraterTable.class)
         .build();
 
-    private final ConcurrentInternedSet<TruffleString> internedStrings = new ConcurrentInternedSet<>();
+    private final ConcurrentInternedSet<CraterString> internedStrings = new ConcurrentInternedSet<>();
 
-    private final TruffleString nilString = getInternedString("nil");
-    private final TruffleString trueString = getInternedString("true");
-    private final TruffleString falseString = getInternedString("false");
+    private final CraterString nilString = getInternedString("nil");
+    private final CraterString trueString = getInternedString("true");
+    private final CraterString falseString = getInternedString("false");
 
-    private final TruffleString addMetamethodKey = getInternedString("__add");
-    private final TruffleString subMetamethodKey = getInternedString("__sub");
-    private final TruffleString mulMetamethodKey = getInternedString("__mul");
-    private final TruffleString divMetamethodKey = getInternedString("__div");
-    private final TruffleString modMetamethodKey = getInternedString("__mod");
-    private final TruffleString powMetamethodKey = getInternedString("__pow");
-    private final TruffleString unmMetamethodKey = getInternedString("__unm");
-    private final TruffleString idivMetamethodKey = getInternedString("__idiv");
-    private final TruffleString bandMetamethodKey = getInternedString("__band");
-    private final TruffleString borMetamethodKey = getInternedString("__bor");
-    private final TruffleString bxorMetamethodKey = getInternedString("__bxor");
-    private final TruffleString bnotMetamethodKey = getInternedString("__bnot");
-    private final TruffleString shlMetamethodKey = getInternedString("__shl");
-    private final TruffleString shrMetamethodKey = getInternedString("__shr");
-    private final TruffleString concatMetamethodKey = getInternedString("__concat");
-    private final TruffleString lenMetamethodKey = getInternedString("__len");
-    private final TruffleString eqMetamethodKey = getInternedString("__eq");
-    private final TruffleString ltMetamethodKey = getInternedString("__lt");
-    private final TruffleString leMetamethodKey = getInternedString("__le");
-    private final TruffleString indexMetamethodKey = getInternedString("__index");
-    private final TruffleString newindexMetamethodKey = getInternedString("__newindex");
-    private final TruffleString callMetamethodKey = getInternedString("__call");
-    private final TruffleString gcMetamethodKey = getInternedString("__gc");
-    private final TruffleString closeMetamethodKey = getInternedString("__close");
-    private final TruffleString modeMetavalueKey = getInternedString("__mode");
-    private final TruffleString tostringMetamethodKey = getInternedString("__tostring");
-    private final TruffleString nameMetavalueKey = getInternedString("__name");
+    private final CraterString addMetamethodKey = getInternedString("__add");
+    private final CraterString subMetamethodKey = getInternedString("__sub");
+    private final CraterString mulMetamethodKey = getInternedString("__mul");
+    private final CraterString divMetamethodKey = getInternedString("__div");
+    private final CraterString modMetamethodKey = getInternedString("__mod");
+    private final CraterString powMetamethodKey = getInternedString("__pow");
+    private final CraterString unmMetamethodKey = getInternedString("__unm");
+    private final CraterString idivMetamethodKey = getInternedString("__idiv");
+    private final CraterString bandMetamethodKey = getInternedString("__band");
+    private final CraterString borMetamethodKey = getInternedString("__bor");
+    private final CraterString bxorMetamethodKey = getInternedString("__bxor");
+    private final CraterString bnotMetamethodKey = getInternedString("__bnot");
+    private final CraterString shlMetamethodKey = getInternedString("__shl");
+    private final CraterString shrMetamethodKey = getInternedString("__shr");
+    private final CraterString concatMetamethodKey = getInternedString("__concat");
+    private final CraterString lenMetamethodKey = getInternedString("__len");
+    private final CraterString eqMetamethodKey = getInternedString("__eq");
+    private final CraterString ltMetamethodKey = getInternedString("__lt");
+    private final CraterString leMetamethodKey = getInternedString("__le");
+    private final CraterString indexMetamethodKey = getInternedString("__index");
+    private final CraterString newindexMetamethodKey = getInternedString("__newindex");
+    private final CraterString callMetamethodKey = getInternedString("__call");
+    private final CraterString gcMetamethodKey = getInternedString("__gc");
+    private final CraterString closeMetamethodKey = getInternedString("__close");
+    private final CraterString modeMetavalueKey = getInternedString("__mode");
+    private final CraterString tostringMetamethodKey = getInternedString("__tostring");
+    private final CraterString nameMetavalueKey = getInternedString("__name");
 
-    private final TruffleString weakKeyModeString = getInternedString("k");
-    private final TruffleString weakValueModeString = getInternedString("v");
-    private final TruffleString weakKeyAndValueModeString = getInternedString("kv");
+    private final CraterString weakKeyModeString = getInternedString("k");
+    private final CraterString weakValueModeString = getInternedString("v");
+    private final CraterString weakKeyAndValueModeString = getInternedString("kv");
 
-    private final TruffleString lowercaseLetterNString = getInternedString("n");
-    private final TruffleString poundSignString = getInternedString("#");
+    private final CraterString lowercaseLetterNString = getInternedString("n");
+    private final CraterString poundSignString = getInternedString("#");
 
-    private final TruffleString nanString = getInternedString("nan");
-    private final TruffleString infString = getInternedString("inf");
-    private final TruffleString negativeInfString = getInternedString("-inf");
+    private final CraterString nanString = getInternedString("nan");
+    private final CraterString infString = getInternedString("inf");
+    private final CraterString negativeInfString = getInternedString("-inf");
 
     @Override protected Context createContext(Env env) {
         return new Context();
@@ -163,168 +163,165 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
     }
 
     @TruffleBoundary
-    public TruffleString getInternedString(String javaString) {
-        var string = TruffleString
-            .fromJavaStringUncached(javaString, TruffleString.Encoding.UTF_8)
-            .forceEncodingUncached(TruffleString.Encoding.UTF_8, TruffleString.Encoding.BYTES);
-
-        return getInternedString(string);
+    public CraterString getInternedString(String javaString) {
+        // TODO
+        return null;
     }
 
     @TruffleBoundary
-    public TruffleString getInternedString(TruffleString string) {
+    public CraterString getInternedString(CraterString string) {
         return internedStrings.intern(string);
     }
 
-    public TruffleString getNilString() {
+    public CraterString getNilString() {
         return nilString;
     }
 
-    public TruffleString getTrueString() {
+    public CraterString getTrueString() {
         return trueString;
     }
 
-    public TruffleString getFalseString() {
+    public CraterString getFalseString() {
         return falseString;
     }
 
-    public TruffleString getAddMetamethodKey() {
+    public CraterString getAddMetamethodKey() {
         return addMetamethodKey;
     }
 
-    public TruffleString getSubMetamethodKey() {
+    public CraterString getSubMetamethodKey() {
         return subMetamethodKey;
     }
 
-    public TruffleString getMulMetamethodKey() {
+    public CraterString getMulMetamethodKey() {
         return mulMetamethodKey;
     }
 
-    public TruffleString getDivMetamethodKey() {
+    public CraterString getDivMetamethodKey() {
         return divMetamethodKey;
     }
 
-    public TruffleString getModMetamethodKey() {
+    public CraterString getModMetamethodKey() {
         return modMetamethodKey;
     }
 
-    public TruffleString getPowMetamethodKey() {
+    public CraterString getPowMetamethodKey() {
         return powMetamethodKey;
     }
 
-    public TruffleString getUnmMetamethodKey() {
+    public CraterString getUnmMetamethodKey() {
         return unmMetamethodKey;
     }
 
-    public TruffleString getIdivMetamethodKey() {
+    public CraterString getIdivMetamethodKey() {
         return idivMetamethodKey;
     }
 
-    public TruffleString getBandMetamethodKey() {
+    public CraterString getBandMetamethodKey() {
         return bandMetamethodKey;
     }
 
-    public TruffleString getBorMetamethodKey() {
+    public CraterString getBorMetamethodKey() {
         return borMetamethodKey;
     }
 
-    public TruffleString getBxorMetamethodKey() {
+    public CraterString getBxorMetamethodKey() {
         return bxorMetamethodKey;
     }
 
-    public TruffleString getBnotMetamethodKey() {
+    public CraterString getBnotMetamethodKey() {
         return bnotMetamethodKey;
     }
 
-    public TruffleString getShlMetamethodKey() {
+    public CraterString getShlMetamethodKey() {
         return shlMetamethodKey;
     }
 
-    public TruffleString getShrMetamethodKey() {
+    public CraterString getShrMetamethodKey() {
         return shrMetamethodKey;
     }
 
-    public TruffleString getConcatMetamethodKey() {
+    public CraterString getConcatMetamethodKey() {
         return concatMetamethodKey;
     }
 
-    public TruffleString getLenMetamethodKey() {
+    public CraterString getLenMetamethodKey() {
         return lenMetamethodKey;
     }
 
-    public TruffleString getEqMetamethodKey() {
+    public CraterString getEqMetamethodKey() {
         return eqMetamethodKey;
     }
 
-    public TruffleString getLtMetamethodKey() {
+    public CraterString getLtMetamethodKey() {
         return ltMetamethodKey;
     }
 
-    public TruffleString getLeMetamethodKey() {
+    public CraterString getLeMetamethodKey() {
         return leMetamethodKey;
     }
 
-    public TruffleString getIndexMetavalueKey() {
+    public CraterString getIndexMetavalueKey() {
         return indexMetamethodKey;
     }
 
-    public TruffleString getNewindexMetamethodKey() {
+    public CraterString getNewindexMetamethodKey() {
         return newindexMetamethodKey;
     }
 
-    public TruffleString getCallMetamethodKey() {
+    public CraterString getCallMetamethodKey() {
         return callMetamethodKey;
     }
 
-    public TruffleString getGcMetamethodKey() {
+    public CraterString getGcMetamethodKey() {
         return gcMetamethodKey;
     }
 
-    public TruffleString getCloseMetamethodKey() {
+    public CraterString getCloseMetamethodKey() {
         return closeMetamethodKey;
     }
 
-    public TruffleString getModeMetavalueKey() {
+    public CraterString getModeMetavalueKey() {
         return modeMetavalueKey;
     }
 
-    public TruffleString getTostringMetamethodKey() {
+    public CraterString getTostringMetamethodKey() {
         return tostringMetamethodKey;
     }
 
-    public TruffleString getNameMetavalueKey() {
+    public CraterString getNameMetavalueKey() {
         return nameMetavalueKey;
     }
 
-    public TruffleString getWeakKeyModeString() {
+    public CraterString getWeakKeyModeString() {
         return weakKeyModeString;
     }
 
-    public TruffleString getWeakValueModeString() {
+    public CraterString getWeakValueModeString() {
         return weakValueModeString;
     }
 
-    public TruffleString getWeakKeyAndValueModeString() {
+    public CraterString getWeakKeyAndValueModeString() {
         return weakKeyAndValueModeString;
     }
 
-    public TruffleString getNanString() {
+    public CraterString getNanString() {
         return nanString;
     }
 
-    public TruffleString getInfString() {
+    public CraterString getInfString() {
         return infString;
     }
 
-    public TruffleString getNegativeInfString() {
+    public CraterString getNegativeInfString() {
         return negativeInfString;
     }
 
-    public TruffleString getLowercaseLetterNString() {
+    public CraterString getLowercaseLetterNString() {
         return lowercaseLetterNString;
     }
 
-    public TruffleString getPoundSignString() {
+    public CraterString getPoundSignString() {
         return poundSignString;
     }
 }

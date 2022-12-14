@@ -11,11 +11,11 @@ import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.profiles.ConditionProfile;
 import com.oracle.truffle.api.source.SourceSection;
 import com.oracle.truffle.api.strings.TruffleString;
-import com.oracle.truffle.api.strings.TruffleStringBuilder;
 import org.craterlang.language.CraterLanguage;
 import org.craterlang.language.CraterNode;
 import org.craterlang.language.nodes.CraterForceIntoLongNode;
 import org.craterlang.language.runtime.CraterNil;
+import org.craterlang.language.runtime.CraterString;
 
 import java.util.function.Supplier;
 
@@ -57,8 +57,8 @@ public abstract class CraterErrorNode extends CraterBuiltinFunctionBodyNode {
         abstract Object execute(Object message, long level);
 
         @Specialization(guards = {"level > 0", "level < 2147483647"})
-        TruffleString doAddLocation(
-            TruffleString message,
+        CraterString doAddLocation(
+            CraterString message,
             long level,
             @Cached GetCallSiteSourceLocationNode getCallSiteSourceLocationNode,
             @Cached ConditionProfile sourceLocationIsNullProfile,
@@ -105,30 +105,15 @@ public abstract class CraterErrorNode extends CraterBuiltinFunctionBodyNode {
     }
 
     static abstract class BuildMessageWithLocationNode extends CraterNode {
-        abstract TruffleString execute(TruffleString message, SourceLocation sourceLocation);
+        abstract CraterString execute(CraterString message, SourceLocation sourceLocation);
 
         @Specialization
-        TruffleString doExecute(
-            TruffleString message,
-            SourceLocation sourceLocation,
-            @Cached TruffleStringBuilder.AppendStringNode appendFileNode,
-            @Cached TruffleStringBuilder.AppendByteNode appendFileLineSeparatorNode,
-            @Cached TruffleStringBuilder.AppendIntNumberNode appendLineNumberNode,
-            @Cached TruffleStringBuilder.AppendByteNode appendLineColumnSeparatorNode,
-            @Cached TruffleStringBuilder.AppendIntNumberNode appendColumnNumberNode,
-            @Cached TruffleStringBuilder.AppendByteNode appendLocationMessageSeparatorNode,
-            @Cached TruffleStringBuilder.AppendStringNode appendMessageNode,
-            @Cached TruffleStringBuilder.ToStringNode builderToStringNode
+        CraterString doExecute(
+            CraterString message,
+            SourceLocation sourceLocation
         ) {
-            var builder = TruffleStringBuilder.create(TruffleString.Encoding.BYTES);
-            appendFileNode.execute(builder, sourceLocation.file);
-            appendFileLineSeparatorNode.execute(builder, (byte) ':');
-            appendLineNumberNode.execute(builder, sourceLocation.line);
-            appendLineColumnSeparatorNode.execute(builder, (byte) ':');
-            appendColumnNumberNode.execute(builder, sourceLocation.column);
-            appendLocationMessageSeparatorNode.execute(builder, (byte) ' ');
-            appendMessageNode.execute(builder, message);
-            return builderToStringNode.execute(builder);
+            // TODO
+            return null;
         }
     }
 
@@ -157,7 +142,7 @@ public abstract class CraterErrorNode extends CraterBuiltinFunctionBodyNode {
         }
     }
 
-    record SourceLocation(TruffleString file, int line, int column) {
+    record SourceLocation(CraterString file, int line, int column) {
         static SourceLocation ofSourceSection(SourceSection sourceSection) {
             return new SourceLocation(
                 CraterLanguage.get(null).getInternedString(sourceSection.getSource().getPath()),

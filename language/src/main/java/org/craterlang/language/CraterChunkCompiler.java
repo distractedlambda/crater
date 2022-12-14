@@ -425,7 +425,9 @@ public class CraterChunkCompiler {
                 }
             }
 
-            return language.getInternedString(builder.toStringUncached());
+            // TODO
+            return null;
+            // return language.getInternedString(builder.toStringUncached());
         }
 
         private static void appendRawCodePoint(TruffleStringBuilder builder, int codePoint) {

@@ -6,7 +6,7 @@ import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.strings.TruffleString;
 import org.craterlang.language.CraterNode;
 import org.craterlang.language.runtime.CraterMath;
-import org.craterlang.language.runtime.CraterStrings;
+import org.craterlang.language.runtime.CraterString;
 
 import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
 
@@ -33,14 +33,8 @@ public abstract class CraterForceIntoLongNode extends CraterNode {
     }
 
     @Specialization
-    long doString(TruffleString value, @Cached CraterStrings.ParseLongNode parseLongNode) {
-        try {
-            return parseLongNode.execute(value);
-        }
-        catch (CraterStrings.NumberFormatException exception) {
-            transferToInterpreter();
-            throw error("");
-        }
+    long doString(CraterString value, @Cached CraterString.ParseLongNode parseLongNode) {
+        return parseLongNode.execute(value);
     }
 
     @Fallback

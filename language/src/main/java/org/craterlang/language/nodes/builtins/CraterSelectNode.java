@@ -5,9 +5,9 @@ import com.oracle.truffle.api.dsl.Fallback;
 import com.oracle.truffle.api.dsl.GeneratePackagePrivate;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.profiles.LongValueProfile;
-import com.oracle.truffle.api.strings.TruffleString;
 import org.craterlang.language.CraterNode;
 import org.craterlang.language.nodes.CraterForceIntoLongNode;
+import org.craterlang.language.runtime.CraterString;
 
 import java.util.function.Supplier;
 
@@ -42,10 +42,10 @@ public abstract class CraterSelectNode extends CraterBuiltinFunctionBodyNode {
             Object[] arguments,
             int argumentsStart,
             int argumentsLength,
-            TruffleString index,
-            @Cached TruffleString.EqualNode stringEqualNode
+            CraterString index,
+            @Cached CraterString.EqualsNode stringEqualNode
         ) {
-            if (!stringEqualNode.execute(index, getLanguage().getPoundSignString(), TruffleString.Encoding.BYTES)) {
+            if (!stringEqualNode.execute(index, getLanguage().getPoundSignString())) {
                 // FIXME: handle integer-valued strings
                 transferToInterpreter();
                 throw error("");

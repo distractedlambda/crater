@@ -3,8 +3,8 @@ package org.craterlang.language.nodes;
 import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.Fallback;
 import com.oracle.truffle.api.dsl.Specialization;
-import com.oracle.truffle.api.strings.TruffleString;
 import org.craterlang.language.CraterNode;
+import org.craterlang.language.runtime.CraterString;
 
 import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
 
@@ -26,14 +26,8 @@ public abstract class CraterForceIntoDoubleNode extends CraterNode {
     }
 
     @Specialization
-    double doString(TruffleString value, @Cached TruffleString.ParseDoubleNode parseDoubleNode) {
-        try {
-            return parseDoubleNode.execute(value);
-        }
-        catch (TruffleString.NumberFormatException exception) {
-            transferToInterpreter();
-            throw error("");
-        }
+    double doString(CraterString value, @Cached CraterString.ParseDoubleNode parseDoubleNode) {
+        return parseDoubleNode.execute(value);
     }
 
     @Fallback

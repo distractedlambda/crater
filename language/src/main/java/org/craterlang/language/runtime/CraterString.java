@@ -7,6 +7,7 @@ import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.Fallback;
 import com.oracle.truffle.api.dsl.GeneratePackagePrivate;
 import com.oracle.truffle.api.dsl.GenerateUncached;
+import com.oracle.truffle.api.dsl.ImportStatic;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.interop.TruffleObject;
 import com.oracle.truffle.api.nodes.ExplodeLoop;
@@ -24,6 +25,8 @@ import static com.oracle.truffle.api.CompilerAsserts.neverPartOfCompilation;
 import static com.oracle.truffle.api.CompilerDirectives.castExact;
 import static com.oracle.truffle.api.CompilerDirectives.isExact;
 import static com.oracle.truffle.api.CompilerDirectives.transferToInterpreter;
+import static java.lang.Double.doubleToRawLongBits;
+import static java.lang.Double.isFinite;
 import static java.lang.Double.isNaN;
 import static java.lang.Double.longBitsToDouble;
 import static java.lang.Math.addExact;
@@ -180,11 +183,6 @@ public final class CraterString implements TruffleObject {
             return CraterStringFactory.LengthNodeGen.getUncached();
         }
 
-        @Specialization(guards = "string.isImmediate()")
-        int doImmediate(CraterString string) {
-            return string.getImmediateLength();
-        }
-
         @Specialization(guards = "string.isLazyConcat()")
         int doLazyConcat(CraterString string) {
             return string.getLazyConcatLength();
@@ -198,6 +196,12 @@ public final class CraterString implements TruffleObject {
         @Specialization(guards = "string.isLazyReverse()")
         int doLazyReverse(CraterString string) {
             return string.getLazyReverseLength();
+        }
+
+        @Fallback
+        int doOther(CraterString string, @Cached ForceNode forceNode) {
+            forceNode.execute(string);
+            return string.getImmediateLength();
         }
     }
 
@@ -234,6 +238,7 @@ public final class CraterString implements TruffleObject {
 
     @GenerateUncached
     @GeneratePackagePrivate
+    @ImportStatic(CraterString.class)
     public static abstract class ForceNode extends CraterNode {
         public abstract void execute(CraterString string);
 
@@ -247,6 +252,34 @@ public final class CraterString implements TruffleObject {
 
         @Specialization(guards = "string.isImmediate()")
         void doImmediate(CraterString string) {}
+
+        @Specialization(guards = {"string.isLazyLong()", "string.getLazyLongValue() == cachedValue"})
+        void doConstantLazyLong(
+            CraterString string,
+            @Cached("string.getLazyLongValue()") long cachedValue,
+            @Cached(value = "longToString(cachedValue)", dimensions = 1) byte[] cachedBytes
+        ) {
+            string.setImmediate(cachedBytes);
+        }
+
+        @Specialization(guards = "string.isLazyLong()", replaces = "doConstantLazyLong")
+        void doLazyLong(CraterString string) {
+            string.setImmediate(longToString(string.getLazyLongValue()));
+        }
+
+        @Specialization(guards = {"string.isLazyDouble()", "string.getLazyDoubleValue() == cachedValue"})
+        void doConstantLazyDouble(
+            CraterString string,
+            @Cached("string.getLazyDoubleValue()") double cachedValue,
+            @Cached(value = "doubleToString(cachedValue)", dimensions = 1) byte[] cachedBytes
+        ) {
+            string.setImmediate(cachedBytes);
+        }
+
+        @Specialization(guards = "string.isLazyDouble()", replaces = "doConstantLazyDouble")
+        void doLazyDouble(CraterString string) {
+            string.setImmediate(doubleToString(string.getLazyDoubleValue()));
+        }
 
         @Fallback
         void doOther(
@@ -638,6 +671,55 @@ public final class CraterString implements TruffleObject {
                 return (double) result;
             }
         }
+    }
+
+    @GenerateUncached
+    @GeneratePackagePrivate
+    @ImportStatic(Double.class)
+    public static abstract class FromDoubleNode extends CraterNode {
+        public abstract CraterString execute(double value);
+
+        public static FromDoubleNode create() {
+            return CraterStringFactory.FromDoubleNodeGen.create();
+        }
+
+        public static FromDoubleNode getUncached() {
+            return CraterStringFactory.FromDoubleNodeGen.getUncached();
+        }
+
+        @Specialization(guards = "value == NEGATIVE_INFINITY")
+        CraterString doNegativeInfinity(double value) {
+            return getLanguage().getNegativeInfString();
+        }
+
+        @Specialization(guards = "value == POSITIVE_INFINITY")
+        CraterString doPositiveInfinity(double value) {
+            return getLanguage().getInfString();
+        }
+
+        @Specialization(guards = "isNaN(value)")
+        CraterString doNaN(double value) {
+            return getLanguage().getNanString();
+        }
+
+        @Specialization(guards = "isFinite(value)")
+        CraterString doFinite(double value) {
+            var string = new CraterString();
+            string.objectData = TAG_LAZY_DOUBLE;
+            string.primitiveData = doubleToRawLongBits(value);
+            return string;
+        }
+    }
+
+    @TruffleBoundary
+    static byte[] longToString(long value) {
+        return Long.toString(value).getBytes(StandardCharsets.UTF_8);
+    }
+
+    @TruffleBoundary
+    static byte[] doubleToString(double value) {
+        assert isFinite(value);
+        return Double.toString(value).getBytes(StandardCharsets.UTF_8);
     }
 
     @TruffleBoundary
