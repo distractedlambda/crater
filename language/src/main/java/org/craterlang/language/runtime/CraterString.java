@@ -4,7 +4,6 @@ import ch.randelshofer.fastdoubleparser.JavaDoubleParser;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.dsl.Bind;
 import com.oracle.truffle.api.dsl.Cached;
-import com.oracle.truffle.api.dsl.Cached.Shared;
 import com.oracle.truffle.api.dsl.Fallback;
 import com.oracle.truffle.api.dsl.GeneratePackagePrivate;
 import com.oracle.truffle.api.dsl.GenerateUncached;
@@ -16,7 +15,7 @@ import com.oracle.truffle.api.profiles.BranchProfile;
 import com.oracle.truffle.api.profiles.ConditionProfile;
 import com.oracle.truffle.api.profiles.IntValueProfile;
 import org.craterlang.language.CraterNode;
-import org.craterlang.language.nodes.CraterPathProfile;
+import org.craterlang.language.util.PathProfile;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -661,7 +660,7 @@ public final class CraterString implements TruffleObject {
         double doExecute(
             CraterString string,
             @Cached ParseNumberNode parseNumberNode,
-            @Cached CraterPathProfile pathProfile
+            @Cached PathProfile pathProfile
         ) {
             var result = parseNumberNode.execute(string);
             if (result instanceof Long) {

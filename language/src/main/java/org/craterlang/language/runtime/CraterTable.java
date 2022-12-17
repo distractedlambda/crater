@@ -2,6 +2,7 @@ package org.craterlang.language.runtime;
 
 import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.Fallback;
+import com.oracle.truffle.api.dsl.GeneratePackagePrivate;
 import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.ImportStatic;
 import com.oracle.truffle.api.dsl.Specialization;
@@ -58,8 +59,17 @@ public final class CraterTable extends DynamicObject implements TruffleObject {
     private static final HiddenKey OPTIMIZED_ARRAY_LENGTH_KEY = new HiddenKey("optimizedArrayLength");
 
     @GenerateUncached
+    @GeneratePackagePrivate
     public static abstract class GetMetatableNode extends CraterNode {
         public abstract Object execute(CraterTable table);
+
+        public static GetMetatableNode create() {
+            return CraterTableFactory.GetMetatableNodeGen.create();
+        }
+
+        public static GetMetatableNode getUncached() {
+            return CraterTableFactory.GetMetatableNodeGen.getUncached();
+        }
 
         @Specialization(guards = "table.getShape() == cachedShape")
         Object doConstantShape(CraterTable table, @Cached(value = "table.getShape()", weak = true) Shape cachedShape) {
@@ -73,8 +83,17 @@ public final class CraterTable extends DynamicObject implements TruffleObject {
     }
 
     @GenerateUncached
+    @GeneratePackagePrivate
     public static abstract class SetMetatableNode extends CraterNode {
         public abstract void execute(CraterTable table, Object metatable);
+
+        public static SetMetatableNode create() {
+            return CraterTableFactory.SetMetatableNodeGen.create();
+        }
+
+        public static SetMetatableNode getUncached() {
+            return CraterTableFactory.SetMetatableNodeGen.getUncached();
+        }
 
         @Specialization(limit = "3")
         void doExecute(CraterTable table, Object metatable, @CachedLibrary("table") DynamicObjectLibrary tables) {
@@ -83,8 +102,17 @@ public final class CraterTable extends DynamicObject implements TruffleObject {
     }
 
     @GenerateUncached
+    @GeneratePackagePrivate
     public static abstract class RawLengthNode extends CraterNode {
         public abstract long execute(CraterTable table);
+
+        public static RawLengthNode create() {
+            return CraterTableFactory.RawLengthNodeGen.create();
+        }
+
+        public static RawLengthNode getUncached() {
+            return CraterTableFactory.RawLengthNodeGen.getUncached();
+        }
 
         @Specialization(limit = "3")
         long doExecute(CraterTable table, @CachedLibrary("table") DynamicObjectLibrary tables) {
@@ -99,8 +127,17 @@ public final class CraterTable extends DynamicObject implements TruffleObject {
     }
 
     @GenerateUncached
+    @GeneratePackagePrivate
     public static abstract class RawGetNode extends CraterNode {
         public abstract Object execute(CraterTable table, Object key);
+
+        public static RawGetNode create() {
+            return CraterTableFactory.RawGetNodeGen.create();
+        }
+
+        public static RawGetNode getUncached() {
+            return CraterTableFactory.RawGetNodeGen.getUncached();
+        }
 
         @Specialization
         Object doExecute(
