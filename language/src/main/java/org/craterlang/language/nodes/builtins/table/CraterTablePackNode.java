@@ -131,9 +131,8 @@ public abstract class CraterTablePackNode extends CraterBuiltinFunctionBodyNode 
         }
 
         private CraterTable createTable(long n, DynamicObjectLibrary tables) {
-            var table = getLanguage().createTable();
-            tables.putLong(table, getLanguage().getLowercaseLetterNString(), n);
-            return table;
+            // TODO
+            return null;
         }
 
         private CraterTable createOptimizedArrayTable(Object storage, long n, DynamicObjectLibrary tables) {

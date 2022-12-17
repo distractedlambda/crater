@@ -1,21 +1,15 @@
 package org.craterlang.language;
 
-import com.oracle.truffle.api.Assumption;
 import com.oracle.truffle.api.CallTarget;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
-import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.TruffleLanguage;
 import com.oracle.truffle.api.nodes.Node;
-import com.oracle.truffle.api.object.Shape;
 import com.oracle.truffle.api.utilities.AssumedValue;
-import org.craterlang.language.runtime.ConcurrentInternedSet;
 import org.craterlang.language.runtime.CraterNil;
 import org.craterlang.language.runtime.CraterString;
-import org.craterlang.language.runtime.CraterTable;
+import org.craterlang.language.util.InternedSet;
 
-import static com.oracle.truffle.api.CompilerAsserts.neverPartOfCompilation;
-
-@TruffleLanguage.Registration(id = "crater", name = "Crater", contextPolicy = TruffleLanguage.ContextPolicy.SHARED)
+@TruffleLanguage.Registration(id = "crater", name = "Crater", contextPolicy = TruffleLanguage.ContextPolicy.EXCLUSIVE)
 public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context> {
     public static final class Context {
         private static final ContextReference<Context> REFERENCE = ContextReference.create(CraterLanguage.class);
@@ -78,15 +72,7 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
 
     private static final LanguageReference<CraterLanguage> REFERENCE = LanguageReference.create(CraterLanguage.class);
 
-    private final Assumption singleContextAssumption = Truffle.getRuntime().createAssumption("singleContext");
-
-    private final Shape rootTableShape = Shape.newBuilder()
-        .propertyAssumptions(true)
-        .singleContextAssumption(singleContextAssumption)
-        .layout(CraterTable.class)
-        .build();
-
-    private final ConcurrentInternedSet<CraterString> internedStrings = new ConcurrentInternedSet<>();
+    private final InternedSet<CraterString> internedStrings = new InternedSet<>(32);
 
     private final CraterString nilString = getInternedString("nil");
     private final CraterString trueString = getInternedString("true");
@@ -135,10 +121,6 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
         return new Context();
     }
 
-    @Override protected void initializeMultipleContexts() {
-        singleContextAssumption.invalidate("initializeMultipleContexts() called");
-    }
-
     @Override protected CallTarget parse(ParsingRequest request) throws Exception {
         // TODO
         return null;
@@ -148,27 +130,12 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
         return REFERENCE.get(node);
     }
 
-    public CraterTable createTable() {
-        return new CraterTable(rootTableShape);
-    }
-
-    public Shape getFunctionRootShape(CallTarget callTarget) {
-        neverPartOfCompilation();
-
-        return Shape.newBuilder()
-            .propertyAssumptions(true)
-            .singleContextAssumption(singleContextAssumption)
-            .dynamicType(callTarget)
-            .build();
-    }
-
     @TruffleBoundary
     public CraterString getInternedString(String javaString) {
         // TODO
         return null;
     }
 
-    @TruffleBoundary
     public CraterString getInternedString(CraterString string) {
         return internedStrings.intern(string);
     }

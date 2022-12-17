@@ -4,6 +4,7 @@ import ch.randelshofer.fastdoubleparser.JavaDoubleParser;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.dsl.Bind;
 import com.oracle.truffle.api.dsl.Cached;
+import com.oracle.truffle.api.dsl.Cached.Shared;
 import com.oracle.truffle.api.dsl.Fallback;
 import com.oracle.truffle.api.dsl.GeneratePackagePrivate;
 import com.oracle.truffle.api.dsl.GenerateUncached;
@@ -30,6 +31,7 @@ import static java.lang.Double.isFinite;
 import static java.lang.Double.isNaN;
 import static java.lang.Double.longBitsToDouble;
 import static java.lang.Math.addExact;
+import static java.lang.Math.incrementExact;
 import static java.lang.Math.multiplyExact;
 import static java.lang.Math.subtractExact;
 import static java.lang.System.arraycopy;
@@ -709,6 +711,121 @@ public final class CraterString implements TruffleObject {
             string.primitiveData = doubleToRawLongBits(value);
             return string;
         }
+    }
+
+    @GenerateUncached
+    @GeneratePackagePrivate
+    public static abstract class ConcatNode extends CraterNode {
+        public abstract CraterString execute(CraterString lhs, CraterString rhs);
+
+        @Specialization(guards = {"lhs.isLazyConcat()", "rhs.isLazyConcat()"})
+        CraterString doDualConcat(
+            CraterString lhs,
+            CraterString rhs,
+            @Cached IntValueProfile lhsSubstringsLengthProfile,
+            @Cached IntValueProfile rhsSubstringsLengthProfile,
+            @Cached IntValueProfile totalSubstringsProfile,
+            @Cached ConditionProfile aboveMaxSubstringsProfile
+        ) {
+            var lhsSubstrings = lhs.getLazyConcatSubstrings();
+            var rhsSubstrings = rhs.getLazyConcatSubstrings();
+            var lhsSubstringsLength = lhsSubstringsLengthProfile.profile(lhsSubstrings.length);
+            var rhsSubstringsLength = rhsSubstringsLengthProfile.profile(rhsSubstrings.length);
+            var totalSubstrings = totalSubstringsProfile.profile(addExact(lhsSubstringsLength, rhsSubstringsLength));
+            var totalLength = addExact(lhs.getLazyConcatLength(), rhs.getLazyConcatLength());
+
+            CraterString[] newSubstrings;
+
+            if (aboveMaxSubstringsProfile.profile(totalSubstrings > LAZY_CONCAT_MAX_SUBSTRINGS)) {
+                newSubstrings = new CraterString[]{lhs, rhs};
+            }
+            else {
+                newSubstrings = new CraterString[totalSubstrings];
+                arraycopy(lhsSubstrings, 0, newSubstrings, 0, lhsSubstringsLength);
+                arraycopy(rhsSubstrings, 0, newSubstrings, lhsSubstringsLength, rhsSubstringsLength);
+            }
+
+            var result = new CraterString();
+            result.objectData = newSubstrings;
+            result.primitiveData = (Integer.toUnsignedLong(totalLength) << 8) | TAG_LAZY_CONCAT;
+            return result;
+        }
+
+        @Specialization(guards = {"lhs.isLazyConcat()", "!rhs.isLazyConcat()"})
+        CraterString doLhsConcat(
+            CraterString lhs,
+            CraterString rhs,
+            @Cached IntValueProfile lhsSubstringsLengthProfile,
+            @Cached LengthNode rhsLengthNode,
+            @Cached ConditionProfile aboveMaxSubstringsProfile
+        ) {
+            var lhsSubstrings = lhs.getLazyConcatSubstrings();
+            var lhsSubstringsLength = lhsSubstringsLengthProfile.profile(lhsSubstrings.length);
+            var totalSubstrings = incrementExact(lhsSubstringsLength);
+            var totalLength = addExact(lhs.getLazyConcatLength(), rhsLengthNode.execute(rhs));
+
+            CraterString[] newSubstrings;
+
+            if (aboveMaxSubstringsProfile.profile(totalSubstrings > LAZY_CONCAT_MAX_SUBSTRINGS)) {
+                newSubstrings = new CraterString[]{lhs, rhs};
+            }
+            else {
+                newSubstrings = Arrays.copyOf(lhsSubstrings, totalSubstrings);
+                newSubstrings[totalSubstrings - 1] = rhs;
+            }
+
+            var result = new CraterString();
+            result.objectData = newSubstrings;
+            result.primitiveData = (Integer.toUnsignedLong(totalLength) << 8) | TAG_LAZY_CONCAT;
+            return result;
+        }
+
+        @Specialization(guards = {"!lhs.isLazyConcat()", "rhs.isLazyConcat()"})
+        CraterString doRhsConcat(
+            CraterString lhs,
+            CraterString rhs,
+            @Cached IntValueProfile rhsSubstringsLengthProfile,
+            @Cached LengthNode lhsLengthNode,
+            @Cached ConditionProfile aboveMaxSubstringsProfile
+        ) {
+            var rhsSubstrings = rhs.getLazyConcatSubstrings();
+            var rhsSubstringsLength = rhsSubstringsLengthProfile.profile(rhsSubstrings.length);
+            var totalSubstrings = incrementExact(rhsSubstringsLength);
+            var totalLength = addExact(lhsLengthNode.execute(rhs), rhs.getLazyConcatLength());
+
+            CraterString[] newSubstrings;
+
+            if (aboveMaxSubstringsProfile.profile(totalSubstrings > LAZY_CONCAT_MAX_SUBSTRINGS)) {
+                newSubstrings = new CraterString[]{lhs, rhs};
+            }
+            else {
+                newSubstrings = new CraterString[totalSubstrings];
+                newSubstrings[0] = lhs;
+                arraycopy(rhsSubstrings, 0, newSubstrings, 1, rhsSubstringsLength);
+            }
+
+            var result = new CraterString();
+            result.objectData = newSubstrings;
+            result.primitiveData = (Integer.toUnsignedLong(totalLength) << 8) | TAG_LAZY_CONCAT;
+            return result;
+        }
+
+        @Fallback
+        CraterString doOther(
+            CraterString lhs,
+            CraterString rhs,
+            @Cached LengthNode lhsLengthNode,
+            @Cached LengthNode rhsLengthNode
+        ) {
+            var totalLength = addExact(lhsLengthNode.execute(lhs), rhsLengthNode.execute(rhs));
+            var result = new CraterString();
+            result.objectData = new CraterString[]{lhs, rhs};
+            result.primitiveData = (Integer.toUnsignedLong(totalLength) << 8) | TAG_LAZY_CONCAT;
+            return result;
+        }
+
+        private static final int LAZY_CONCAT_MAX_SUBSTRINGS = 16;
+        private static final int EAGER_CONCAT_MAX_LENGTH = 64;
     }
 
     @TruffleBoundary

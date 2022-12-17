@@ -54,6 +54,7 @@ import org.craterlang.language.CraterParser.WhileStatementContext;
 import org.craterlang.language.runtime.CraterNil;
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.collections.EconomicSet;
+import org.graalvm.collections.Pair;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -68,11 +69,11 @@ import static java.lang.Math.addExact;
 import static java.lang.Math.multiplyExact;
 import static java.util.Objects.requireNonNull;
 
-public class CraterChunkCompiler {
+public class ChunkCompiler {
     private final CraterLanguage language;
     private final Source source;
 
-    public CraterChunkCompiler(CraterLanguage language, Source source) {
+    public ChunkCompiler(CraterLanguage language, Source source) {
         this.language = language;
         this.source = source;
     }
@@ -134,14 +135,106 @@ public class CraterChunkCompiler {
     }
 
     private final class FunctionInstruction extends Instruction {
-        static final class BlockScope {
+        final class BlockScope {
             final BlockScope parentScope;
-            final EconomicMap<String, LocalVar> declaredLocals = EconomicMap.create();
-            final EconomicMap<String, BasicBlock> labels = EconomicMap.create();
-            final EconomicMap<String, List<GotoInstruction>> unresolvedGotos = EconomicMap.create();
+
+            Object declaredLocals, labels, unresolvedGotos;
+            // final EconomicMap<String, LocalVar> declaredLocals = EconomicMap.create();
+            // final EconomicMap<String, BasicBlock> labels = EconomicMap.create();
+            // final EconomicMap<String, List<GotoInstruction>> unresolvedGotos = EconomicMap.create();
 
             BlockScope(BlockScope parentScope) {
                 this.parentScope = parentScope;
+            }
+
+            void checkNoUnresolvedGoto() {
+                Object instructions;
+
+                if (unresolvedGotos == null) {
+                    return;
+                }
+                else if (unresolvedGotos instanceof Pair<?,?> pair) {
+                    instructions = pair.getRight();
+                }
+                else {
+                    instructions = ((EconomicMap<?, ?>) unresolvedGotos).getValues().iterator().next();
+                }
+
+                GotoInstruction instruction;
+
+                if (instructions == null) {
+                    return;
+                }
+                else if (instructions instanceof List<?> instructionList) {
+                    instruction = (GotoInstruction) instructionList.get(0);
+                }
+                else {
+                    instruction = (GotoInstruction) instructions;
+                }
+
+                throw createParseException(instruction, "No matching label found");
+            }
+
+            @SuppressWarnings("unchecked")
+            boolean hasLabel(String name) {
+                if (labels == null) {
+                    return false;
+                }
+                else if (labels instanceof Pair<?,?> pair) {
+                    return name.equals(pair.getLeft());
+                }
+                else {
+                    return ((EconomicMap<String, BasicBlock>) labels).containsKey(name);
+                }
+            }
+
+            @SuppressWarnings("unchecked")
+            void declareLabel(String name, BasicBlock target) {
+                if (labels == null) {
+                    labels = Pair.create(name, target);
+                }
+                else if (labels instanceof Pair<?,?> pair) {
+                    EconomicMap<String, BasicBlock> labelsMap = EconomicMap.create();
+                    labelsMap.put((String) pair.getLeft(), (BasicBlock) pair.getRight());
+                    labelsMap.put(name, target);
+                    labels = labelsMap;
+                }
+                else {
+                    ((EconomicMap<String, BasicBlock>) labels).put(name, target);
+                }
+
+                Object gotoInstructions;
+
+                if (unresolvedGotos == null) {
+                    return;
+                }
+                else if (unresolvedGotos instanceof Pair<?,?> pair) {
+                    if (name.equals(pair.getLeft())) {
+                        gotoInstructions = pair.getRight();
+                    }
+                    else {
+                        return;
+                    }
+                }
+                else {
+                    gotoInstructions = ((EconomicMap<String, ?>) unresolvedGotos).get(name);
+                }
+
+                if (gotoInstructions == null) {
+                    return;
+                }
+                else if (gotoInstructions instanceof List<?> gotoInstructionList) {
+                    for (var instruction : gotoInstructionList) {
+                        ((GotoInstruction) instruction).linkTarget(target);
+                    }
+                }
+                else {
+                    ((GotoInstruction) gotoInstructions).linkTarget(target);
+                }
+            }
+
+            void resolveGoto(GotoInstruction instruction, String labelName) {
+                // TODO
             }
         }
 
@@ -168,7 +261,7 @@ public class CraterChunkCompiler {
 
         private BasicBlock addBasicBlock(BasicBlock block) {
             if (!currentBlock().terminated) {
-                currentBlock().addSuccessor(block);
+                currentBlock().linkSuccessor(block);
             }
 
             blocks.add(block);
@@ -180,10 +273,7 @@ public class CraterChunkCompiler {
         }
 
         private void popBlockScope() {
-            for (var unresolved : currentBlockScope.unresolvedGotos.getValues()) {
-                throw createParseException(unresolved.get(0), "No matching label found");
-            }
-
+            currentBlockScope.checkNoUnresolvedGoto();
             currentBlockScope = currentBlockScope.parentScope;
         }
 
@@ -599,20 +689,13 @@ public class CraterChunkCompiler {
         private void process(LabelStatementContext context) {
             var nameString = context.name.getText();
             for (var scope = currentBlockScope; scope != null; scope = scope.parentScope) {
-                if (scope.labels.containsKey(nameString)) {
+                if (scope.hasLabel(nameString)) {
                     throw createParseException(context, "An identically-named label is already in scope");
                 }
             }
 
             var labeledBlock = addBasicBlock(new BasicBlock());
-            currentBlockScope.labels.put(nameString, labeledBlock);
-
-            var unresolved = currentBlockScope.unresolvedGotos.removeKey(nameString);
-            if (unresolved != null) {
-                for (var instruction : unresolved) {
-                    instruction.linkTarget(labeledBlock);
-                }
-            }
+            currentBlockScope.declareLabel(nameString, labeledBlock);
         }
 
         private void process(BreakStatementContext context) {
@@ -626,20 +709,7 @@ public class CraterChunkCompiler {
         private void process(GotoStatementContext context) {
             var instruction = append(new GotoInstruction(context));
             var targetName = context.target.getText();
-            var targetBlock = currentBlockScope.labels.get(targetName);
-            if (targetBlock == null) {
-                var unresolved = currentBlockScope.unresolvedGotos.get(targetName);
-
-                if (unresolved == null) {
-                    unresolved = new ArrayList<>();
-                    currentBlockScope.unresolvedGotos.put(targetName, unresolved);
-                }
-
-                unresolved.add(instruction);
-            }
-            else {
-                instruction.linkTarget(targetBlock);
-            }
+            currentBlockScope.resolveGoto(instruction, targetName);
         }
 
         private void process(BlockStatementContext context) {
@@ -744,9 +814,55 @@ public class CraterChunkCompiler {
     }
 
     private static abstract sealed class Var {
-        final EconomicSet<LoadInstruction> loads = EconomicSet.create();
-        final EconomicSet<StoreInstruction> stores = EconomicSet.create();
-        final EconomicSet<CapturedVar> captures = EconomicSet.create();
+        Object loads, stores, captures;
+
+        @SuppressWarnings("unchecked")
+        void addLoad(LoadInstruction instruction) {
+            if (loads == null) {
+                loads = instruction;
+            }
+            else if (loads instanceof EconomicSet<?> loadSet) {
+                ((EconomicSet<LoadInstruction>) loadSet).add(instruction);
+            }
+            else if (instruction != loads) {
+                EconomicSet<LoadInstruction> loadSet = EconomicSet.create();
+                loadSet.add((LoadInstruction) loads);
+                loadSet.add(instruction);
+                loads = loadSet;
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        void addStore(StoreInstruction instruction) {
+            if (stores == null) {
+                stores = instruction;
+            }
+            else if (stores instanceof EconomicSet<?> storeSet) {
+                ((EconomicSet<StoreInstruction>) storeSet).add(instruction);
+            }
+            else if (instruction != stores) {
+                EconomicSet<StoreInstruction> storeSet = EconomicSet.create();
+                storeSet.add((StoreInstruction) stores);
+                storeSet.add(instruction);
+                stores = storeSet;
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        void addCapture(CapturedVar capture) {
+            if (captures == null) {
+                captures = capture;
+            }
+            else if (captures instanceof EconomicSet<?> captureSet) {
+                ((EconomicSet<CapturedVar>) captureSet).add(capture);
+            }
+            else if (capture != captures) {
+                EconomicSet<CapturedVar> captureSet = EconomicSet.create();
+                captureSet.add((CapturedVar) captures);
+                captureSet.add(capture);
+                captures = captureSet;
+            }
+        }
     }
 
     private static final class LocalVar extends Var {
@@ -757,40 +873,75 @@ public class CraterChunkCompiler {
 
         CapturedVar(Var source) {
             this.source = requireNonNull(source);
-            source.captures.add(this);
+            source.addCapture(this);
         }
     }
 
     private static final class BasicBlock {
-        final List<Instruction> instructions = new ArrayList<>();
-        final EconomicSet<BasicBlock> predecessors = EconomicSet.create();
-        final EconomicSet<BasicBlock> successors = EconomicSet.create();
+        Object instructions, predecessors, successors;
 
         boolean terminated;
 
+        @SuppressWarnings("unchecked")
         <I extends Instruction> I append(I instruction) {
-            instruction.visitBranchTargets(this::addSuccessor);
+            instruction.visitBranchTargets(this::linkSuccessor);
 
             if (instruction.isTerminator()) {
                 terminated = true;
             }
 
-            instructions.add(instruction);
+            if (instructions == null) {
+                instructions = instruction;
+            }
+            else if (instructions instanceof List<?> instructionList) {
+                ((List<Instruction>) instructionList).add(instruction);
+            }
+            else {
+                List<Instruction> instructionList = new ArrayList<>();
+                instructionList.add((Instruction) instructions);
+                instructionList.add(instruction);
+                instructions = instructionList;
+            }
+
             instruction.block = this;
 
             return instruction;
         }
 
-        void addSuccessor(BasicBlock successor) {
-            successors.add(successor);
-            successor.predecessors.add(this);
+        @SuppressWarnings("unchecked")
+        void linkSuccessor(BasicBlock successor) {
+            if (successors == null) {
+                successors = successor;
+            }
+            else if (successors instanceof EconomicSet<?> successorSet) {
+                ((EconomicSet<BasicBlock>) successorSet).add(successor);
+            }
+            else if (successor != successors) {
+                EconomicSet<BasicBlock> successorSet = EconomicSet.create();
+                successorSet.add((BasicBlock) successors);
+                successorSet.add(successor);
+                successors = successorSet;
+            }
+
+            if (successor.predecessors == null) {
+                successor.predecessors = this;
+            }
+            else if (successor.predecessors instanceof EconomicSet<?> predecessorSet) {
+                ((EconomicSet<BasicBlock>) predecessorSet).add(this);
+            }
+            else if (this != successor.predecessors) {
+                EconomicSet<BasicBlock> predecessorSet = EconomicSet.create();
+                predecessorSet.add((BasicBlock) successor.predecessors);
+                predecessorSet.add(this);
+                successor.predecessors = predecessorSet;
+            }
         }
     }
 
     private static abstract sealed class Instruction extends Operand {
         BasicBlock block;
+        Object uses;
 
-        final EconomicSet<Instruction> uses = EconomicSet.create();
         final int sourceStart;
         final int sourceLength;
 
@@ -805,8 +956,20 @@ public class CraterChunkCompiler {
             }
         }
 
+        @SuppressWarnings("unchecked")
         @Override final void addUse(Instruction user) {
-            uses.add(user);
+            if (uses == null) {
+                uses = user;
+            }
+            else if (uses instanceof EconomicSet<?> useSet) {
+                ((EconomicSet<Instruction>) useSet).add(user);
+            }
+            else if (user != uses) {
+                EconomicSet<Instruction> useSet = EconomicSet.create();
+                useSet.add((Instruction) uses);
+                useSet.add(user);
+                uses = useSet;
+            }
         }
 
         boolean isTerminator() {
@@ -828,7 +991,6 @@ public class CraterChunkCompiler {
     }
 
     private static final class GetVarargsInstruction extends Instruction {
-
         GetVarargsInstruction(ParserRuleContext context) {
             super(context);
         }
@@ -856,7 +1018,7 @@ public class CraterChunkCompiler {
         LoadInstruction(ParserRuleContext context, Var var) {
             super(context);
             this.var = requireNonNull(var);
-            var.loads.add(this);
+            var.addLoad(this);
         }
     }
 
@@ -870,7 +1032,7 @@ public class CraterChunkCompiler {
             this.var = requireNonNull(var);
             this.value = requireNonNull(value);
 
-            var.stores.add(this);
+            var.addStore(this);
             value.addUse(this);
         }
     }
@@ -903,7 +1065,7 @@ public class CraterChunkCompiler {
 
         void linkTarget(BasicBlock resolvedTarget) {
             target = resolvedTarget;
-            block.addSuccessor(resolvedTarget);
+            block.linkSuccessor(resolvedTarget);
         }
     }
 
