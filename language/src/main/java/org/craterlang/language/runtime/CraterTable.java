@@ -1,5 +1,7 @@
 package org.craterlang.language.runtime;
 
+import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
+import com.oracle.truffle.api.CompilerDirectives.ValueType;
 import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.Fallback;
 import com.oracle.truffle.api.dsl.GeneratePackagePrivate;
@@ -7,97 +9,247 @@ import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.ImportStatic;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.interop.TruffleObject;
-import com.oracle.truffle.api.library.CachedLibrary;
-import com.oracle.truffle.api.nodes.UnexpectedResultException;
-import com.oracle.truffle.api.object.DynamicObject;
 import com.oracle.truffle.api.object.DynamicObjectLibrary;
-import com.oracle.truffle.api.object.HiddenKey;
-import com.oracle.truffle.api.object.Shape;
 import com.oracle.truffle.api.profiles.ConditionProfile;
+import org.craterlang.language.CraterLanguage;
 import org.craterlang.language.CraterNode;
+import sun.misc.Unsafe;
 
-import static com.oracle.truffle.api.CompilerDirectives.shouldNotReachHere;
+import java.lang.ref.WeakReference;
+import java.util.Arrays;
 
-public final class CraterTable extends DynamicObject implements TruffleObject {
+import static com.oracle.truffle.api.CompilerAsserts.neverPartOfCompilation;
+import static com.oracle.truffle.api.CompilerAsserts.partialEvaluationConstant;
+import static java.lang.System.identityHashCode;
+import static org.craterlang.language.runtime.UnsafeAccess.getBooleanUnchecked;
+import static org.craterlang.language.runtime.UnsafeAccess.getDoubleUnchecked;
+import static org.craterlang.language.runtime.UnsafeAccess.getLongUnchecked;
+import static org.craterlang.language.runtime.UnsafeAccess.getUnchecked;
+
+public final class CraterTable implements TruffleObject {
+    private Shape shape;
+    private Object metatable;
+    private byte[] primitiveMemberStorage;
+    private Object[] objectMemberStorage;
+    private Object sequenceStorage;
+    private int cachedLength;
+
     public CraterTable(Shape shape) {
-        super(shape);
+        this.shape = shape;
     }
 
-    public void setOptimizedArray(Object storage, long length, DynamicObjectLibrary tables) {
-        tables.setShapeFlags(this, tables.getShapeFlags(this) | OPTIMIZED_ARRAY_FLAG);
-        tables.put(this, OPTIMIZED_ARRAY_STORAGE_KEY, storage);
-        tables.putLong(this, OPTIMIZED_ARRAY_LENGTH_KEY, length);
+    Shape getShape() {
+        return shape;
     }
 
-    boolean hasOptimizedArray(DynamicObjectLibrary tables) {
-        return (tables.getShapeFlags(this) & OPTIMIZED_ARRAY_FLAG) != 0;
+    public Object getMetatable() {
+        return metatable;
     }
 
-    Object getOptimizedArrayStorage(DynamicObjectLibrary tables) {
-        var storage = tables.getOrDefault(this, OPTIMIZED_ARRAY_STORAGE_KEY, null);
-
-        if (storage == null) {
-            throw shouldNotReachHere();
-        }
-
-        return storage;
+    public void setMetatable(Object metatable) {
+        assert metatable != null;
+        this.metatable = metatable;
     }
 
-    long getOptimizedArrayLength(DynamicObjectLibrary tables) {
-        try {
-            return tables.getLongOrDefault(this, OPTIMIZED_ARRAY_LENGTH_KEY, null);
+    boolean hasCachedLength() {
+        return cachedLength >= 0;
+    }
+
+    int getCachedLength() {
+        assert hasCachedLength();
+        return cachedLength;
+    }
+
+    public static sealed abstract class Shape {
+        private CachedMemberAddition[] cachedMemberAdditions;
+        private CachedMemberRemoval[] cachedMemberRemovals;
+
+        abstract AddedMember addMemberWithoutCache(Object key, byte type);
+
+        abstract Shape removeMemberWithoutCache(Object key);
+
+        abstract int getMemberLocation(Object key);
+
+        @TruffleBoundary
+        private AddedMember addMember(Object key, byte type) {
+            int freeCacheSlot;
+
+            if (cachedMemberAdditions == null) {
+                cachedMemberAdditions = new CachedMemberAddition[4];
+                freeCacheSlot = 0;
+            }
+            else {
+                freeCacheSlot = -1;
+
+                for (var i = 0; i < cachedMemberAdditions.length; i++) {
+                    var entry = cachedMemberAdditions[i];
+                    if (entry != null) {
+                        var entryShape = entry.get();
+                        if (entryShape == null) {
+                            cachedMemberAdditions[i] = null;
+                            if (freeCacheSlot < 0) {
+                                freeCacheSlot = i;
+                            }
+                        }
+                        else if (key.equals(entry.key) && type == (entry.location & 0b11)) {
+                            return new AddedMember(entryShape, entry.location);
+                        }
+                    }
+                    else if (freeCacheSlot < 0) {
+                        freeCacheSlot = i;
+                    }
+                }
+
+                if (freeCacheSlot < 0) {
+                    freeCacheSlot = cachedMemberAdditions.length;
+                    cachedMemberAdditions = Arrays.copyOf(cachedMemberAdditions, cachedMemberAdditions.length * 2);
+                }
+            }
+
+            var uninternedResult = addMemberWithoutCache(key, type);
+            var shape = CraterLanguage.get(null).getInternedTableShape(uninternedResult.shape);
+            cachedMemberAdditions[freeCacheSlot] = new CachedMemberAddition(shape, key, uninternedResult.location);
+            return new AddedMember(shape, uninternedResult.location);
         }
-        catch (UnexpectedResultException exception) {
-            throw shouldNotReachHere(exception);
+
+        @TruffleBoundary
+        private Shape removeMember(Object key) {
+            int freeCacheSlot;
+
+            if (cachedMemberRemovals == null) {
+                cachedMemberRemovals = new CachedMemberRemoval[4];
+                freeCacheSlot = 0;
+            }
+            else {
+                freeCacheSlot = -1;
+
+                for (var i = 0; i < cachedMemberRemovals.length; i++) {
+                    var entry = cachedMemberRemovals[i];
+                    if (entry != null) {
+                        var entryShape = entry.get();
+                        if (entryShape == null) {
+                            cachedMemberRemovals[i] = null;
+                            if (freeCacheSlot < 0) {
+                                freeCacheSlot = i;
+                            }
+                        }
+                        else if (key.equals(entry.key)) {
+                            return entryShape;
+                        }
+                    }
+                    else if (freeCacheSlot < 0) {
+                        freeCacheSlot = i;
+                    }
+                }
+
+                if (freeCacheSlot < 0) {
+                    freeCacheSlot = cachedMemberRemovals.length;
+                    cachedMemberRemovals = Arrays.copyOf(cachedMemberRemovals, cachedMemberRemovals.length * 2);
+                }
+            }
+
+            var shape = CraterLanguage.get(null).getInternedTableShape(removeMemberWithoutCache(key));
+            cachedMemberRemovals[freeCacheSlot] = new CachedMemberRemoval(shape, key);
+            return shape;
+        }
+
+        @ValueType
+        record AddedMember(Shape shape, int location) {}
+
+        private static final class CachedMemberAddition extends WeakReference<Shape> {
+            private final Object key;
+            private final int location;
+
+            private CachedMemberAddition(Shape resultingShape, Object key, int location) {
+                super(resultingShape);
+                this.key = key;
+                this.location = location;
+            }
+        }
+
+        private static final class CachedMemberRemoval extends WeakReference<Shape> {
+            private final Object key;
+
+            private CachedMemberRemoval(Shape resultingShape, Object key) {
+                super(resultingShape);
+                this.key = key;
+            }
+        }
+
+        private static final byte TYPE_BOOLEAN = 0;
+        private static final byte TYPE_LONG = 1;
+        private static final byte TYPE_DOUBLE = 2;
+        private static final byte TYPE_OBJECT = 3;
+    }
+
+    private static final class RootShape extends Shape {
+        @Override AddedMember addMemberWithoutCache(Object key, byte type) {
+            neverPartOfCompilation();
+            return new AddedMember(new AddedMemberShape(this, key, type), type);
+        }
+
+        @Override Shape removeMemberWithoutCache(Object key) {
+            neverPartOfCompilation();
+            throw new UnsupportedOperationException();
+        }
+
+        @Override int getMemberLocation(Object key) {
+            neverPartOfCompilation();
+            return -1;
         }
     }
 
-    private static final int OPTIMIZED_ARRAY_FLAG = 0x01;
+    private static final class AddedMemberShape extends Shape {
+        private final Shape base;
+        private final Object key;
+        private final int location;
 
-    private static final HiddenKey LENGTH_KEY = new HiddenKey("length");
-    private static final HiddenKey OPTIMIZED_ARRAY_STORAGE_KEY = new HiddenKey("optimizedArrayStorage");
-    private static final HiddenKey OPTIMIZED_ARRAY_LENGTH_KEY = new HiddenKey("optimizedArrayLength");
-
-    @GenerateUncached
-    @GeneratePackagePrivate
-    public static abstract class GetMetatableNode extends CraterNode {
-        public abstract Object execute(CraterTable table);
-
-        public static GetMetatableNode create() {
-            return CraterTableFactory.GetMetatableNodeGen.create();
+        private AddedMemberShape(Shape base, Object key, int location) {
+            this.base = base;
+            this.key = key;
+            this.location = location;
         }
 
-        public static GetMetatableNode getUncached() {
-            return CraterTableFactory.GetMetatableNodeGen.getUncached();
+        @Override AddedMember addMemberWithoutCache(Object key, byte type) {
+            // TODO
+            neverPartOfCompilation();
+            return null;
         }
 
-        @Specialization(guards = "table.getShape() == cachedShape")
-        Object doConstantShape(CraterTable table, @Cached(value = "table.getShape()", weak = true) Shape cachedShape) {
-            return cachedShape.getDynamicType();
+        @Override Shape removeMemberWithoutCache(Object key) {
+            // TODO
+            neverPartOfCompilation();
+            return null;
         }
 
-        @Specialization(replaces = "doConstantShape")
-        Object doDynamicShape(CraterTable table) {
-            return table.getShape().getDynamicType();
-        }
-    }
-
-    @GenerateUncached
-    @GeneratePackagePrivate
-    public static abstract class SetMetatableNode extends CraterNode {
-        public abstract void execute(CraterTable table, Object metatable);
-
-        public static SetMetatableNode create() {
-            return CraterTableFactory.SetMetatableNodeGen.create();
+        @Override int getMemberLocation(Object key) {
+            neverPartOfCompilation();
+            if (key.equals(this.key)) {
+                return location;
+            }
+            else {
+                return base.getMemberLocation(key);
+            }
         }
 
-        public static SetMetatableNode getUncached() {
-            return CraterTableFactory.SetMetatableNodeGen.getUncached();
+        @Override public boolean equals(Object obj) {
+            neverPartOfCompilation();
+
+            if (!(obj instanceof AddedMemberShape other)) {
+                return false;
+            }
+
+            return base == other.base
+                && key.equals(other.key)
+                && location == other.location;
         }
 
-        @Specialization(limit = "3")
-        void doExecute(CraterTable table, Object metatable, @CachedLibrary("table") DynamicObjectLibrary tables) {
-            tables.setDynamicType(table, metatable);
+        @Override public int hashCode() {
+            neverPartOfCompilation();
+            var result = identityHashCode(base);
+            result = 31 * result + key.hashCode();
+            result = 31 * result + Integer.hashCode(location);
+            return result;
         }
     }
 
@@ -114,20 +266,15 @@ public final class CraterTable extends DynamicObject implements TruffleObject {
             return CraterTableFactory.RawLengthNodeGen.getUncached();
         }
 
-        @Specialization(limit = "3")
-        long doExecute(CraterTable table, @CachedLibrary("table") DynamicObjectLibrary tables) {
-            try {
-                return tables.getLongOrDefault(table, LENGTH_KEY, null);
-            }
-            catch (UnexpectedResultException exception) {
-                // TODO
-                throw new UnsupportedOperationException("TODO");
-            }
+        @Specialization(guards = "table.hasCachedLength()")
+        long doCachedLength(CraterTable table) {
+            return table.getCachedLength();
         }
     }
 
     @GenerateUncached
     @GeneratePackagePrivate
+    @ImportStatic({CraterMath.class, Double.class})
     public static abstract class RawGetNode extends CraterNode {
         public abstract Object execute(CraterTable table, Object key);
 
@@ -140,56 +287,84 @@ public final class CraterTable extends DynamicObject implements TruffleObject {
         }
 
         @Specialization
-        Object doExecute(
-            CraterTable table,
-            Object key,
-            @Cached NormalizeKeyNode normalizeKeyNode,
-            @Cached RawGetWithNormalizedKeyNode rawGetWithNormalizedKeyNode
-        ) {
-            return rawGetWithNormalizedKeyNode.execute(table, normalizeKeyNode.execute(key));
+        CraterNil doNilKey(CraterTable table, CraterNil key) {
+            return CraterNil.getInstance();
         }
-    }
 
-    @GenerateUncached
-    static abstract class RawGetWithNormalizedKeyNode extends CraterNode {
-        abstract Object execute(CraterTable table, Object normalizedKey);
-
-        @Specialization(limit = "3")
-        Object doExecute(
-            CraterTable table,
-            Object key,
-            @CachedLibrary("table") DynamicObjectLibrary tables,
-            @Cached RawGetWithLibraryNode rawGetWithLibraryNode
-        ) {
-            return rawGetWithLibraryNode.execute(table, key, tables);
+        @Specialization(guards = "isNaN(key)")
+        CraterNil doNanKey(CraterTable table, double key) {
+            return CraterNil.getInstance();
         }
-    }
 
-    @GenerateUncached
-    static abstract class RawGetWithLibraryNode extends CraterNode {
-        abstract Object execute(CraterTable table, Object normalizedKey, DynamicObjectLibrary tables);
+        @Specialization
+        Object doLongKey(CraterTable table, long key, @Cached WithLongKeyNode rawGetWithLongKeyNode) {
+            return rawGetWithLongKeyNode.execute(table.sequenceStorage, table.cachedLength, key);
+        }
 
-        @Specialization(guards = {"table.hasOptimizedArray(tables)", "index > 0"})
-        Object doOptimizedArray(
-            CraterTable table,
-            long index,
-            DynamicObjectLibrary tables,
-            @Cached("createCountingProfile()") ConditionProfile inBoundsProfile,
-            @Cached ReadOptimizedArrayElementNode readOptimizedArrayElementNode
-        ) {
-            var length = table.getOptimizedArrayLength(tables);
-            if (inBoundsProfile.profile(index <= length)) {
-                var storage = table.getOptimizedArrayStorage(tables);
-                return readOptimizedArrayElementNode.execute(storage, index);
-            }
-            else {
-                return CraterNil.getInstance();
-            }
+        @Specialization(guards = "hasExactLongValue(key)")
+        Object doDoubleAsLongKey(CraterTable table, double key, @Cached WithLongKeyNode rawGetWithLongKeyNode) {
+            return rawGetWithLongKeyNode.execute(table.sequenceStorage, table.cachedLength, (long) key);
         }
 
         @Fallback
-        Object doOther(CraterTable table, Object key, DynamicObjectLibrary tables) {
-            return tables.getOrDefault(table, key, CraterNil.getInstance());
+        Object doShapeSensitiveKey(CraterTable table, Object key, @Cached ShapeDispatchNode shapeDispatchNode) {
+            return shapeDispatchNode.execute(table, key);
+        }
+
+        private static Object readMember(CraterTable table, int location) {
+            partialEvaluationConstant(location);
+            var type = location & 0b11;
+            var index = location >>> 2;
+            return switch (type) {
+                case Shape.TYPE_BOOLEAN -> getBooleanUnchecked(table.primitiveMemberStorage, index);
+                case Shape.TYPE_LONG -> getLongUnchecked(table.primitiveMemberStorage, index);
+                case Shape.TYPE_DOUBLE -> getDoubleUnchecked(table.primitiveMemberStorage, index);
+                case Shape.TYPE_OBJECT -> getUnchecked(table.objectMemberStorage, index);
+                default -> throw new AssertionError();
+            };
+        }
+
+        @GenerateUncached
+        static abstract class WithLongKeyNode extends CraterNode {
+            abstract Object execute(Object sequenceStorage, int cachedLength, long key);
+
+            @Specialization
+            Object doSomething(Object sequenceStorage, int cachedLength, long key) {
+                // TODO
+                return null;
+            }
+        }
+
+        @GenerateUncached
+        static abstract class ShapeDispatchNode extends CraterNode {
+            abstract Object execute(CraterTable table, Object key);
+
+            @Specialization(guards = "table.getShape() == cachedShape")
+            Object doConstantShape(
+                CraterTable table,
+                Object key,
+                @Cached("table.getShape()") Shape cachedShape,
+                @Cached KeyDispatchNode keyDispatchNode
+            ) {
+                return keyDispatchNode.execute(table, key, cachedShape);
+            }
+
+            @Specialization(replaces = "doConstantShape")
+            Object doDynamicShape(CraterTable table, Object key) {
+                // TODO
+                return null;
+            }
+        }
+
+        @GenerateUncached
+        static abstract class KeyDispatchNode extends CraterNode {
+            abstract Object execute(CraterTable table, Object key, Shape shape);
+
+            @Specialization
+            Object doSomething(CraterTable table, Object key, Shape shape) {
+                // TODO
+                return null;
+            }
         }
     }
 

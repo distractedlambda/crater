@@ -57,7 +57,7 @@ public abstract class GetMetatableNode extends CraterNode {
     }
 
     @Specialization
-    Object doTable(CraterTable subject, @Cached CraterTable.GetMetatableNode getMetatableNode) {
-        return getMetatableNode.execute(subject);
+    Object doTable(CraterTable subject) {
+        return subject.getMetatable();
     }
 }

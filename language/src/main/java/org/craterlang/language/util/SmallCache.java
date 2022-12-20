@@ -21,7 +21,7 @@ public final class SmallCache<K, V> {
         this.storageHandle = requireNonNull(storageHandle);
     }
 
-    public V getOrCompute(K key, Function<K, V> computeValue) {
+    public V getOrCompute(K key, Function<? super K, ? extends V> computeValue) {
         var storage = storageHandle.get(owner);
         if (storage == null) {
             var value = computeValue.apply(key);

@@ -7,6 +7,7 @@ import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.utilities.AssumedValue;
 import org.craterlang.language.runtime.CraterNil;
 import org.craterlang.language.runtime.CraterString;
+import org.craterlang.language.runtime.CraterTable;
 import org.craterlang.language.util.InternedSet;
 
 @TruffleLanguage.Registration(id = "crater", name = "Crater", contextPolicy = TruffleLanguage.ContextPolicy.EXCLUSIVE)
@@ -72,7 +73,7 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
 
     private static final LanguageReference<CraterLanguage> REFERENCE = LanguageReference.create(CraterLanguage.class);
 
-    private final InternedSet<CraterString> internedStrings = new InternedSet<>(32);
+    private final InternedSet<CraterString> internedStrings = new InternedSet<>(64);
 
     private final CraterString nilString = getInternedString("nil");
     private final CraterString trueString = getInternedString("true");
@@ -116,6 +117,8 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
     private final CraterString nanString = getInternedString("nan");
     private final CraterString infString = getInternedString("inf");
     private final CraterString negativeInfString = getInternedString("-inf");
+
+    private final InternedSet<CraterTable.Shape> internedTableShapes = new InternedSet<>(64);
 
     @Override protected Context createContext(Env env) {
         return new Context();
@@ -290,5 +293,14 @@ public final class CraterLanguage extends TruffleLanguage<CraterLanguage.Context
 
     public CraterString getPoundSignString() {
         return poundSignString;
+    }
+
+    public CraterTable.Shape getInternedTableShape(CraterTable.Shape candidate) {
+        return internedTableShapes.intern(candidate);
+    }
+
+    public CraterTable createTable() {
+        // TODO
+        return null;
     }
 }

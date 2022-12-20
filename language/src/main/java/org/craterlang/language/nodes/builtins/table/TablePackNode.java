@@ -139,9 +139,8 @@ public abstract class TablePackNode extends BuiltinFunctionBodyNode {
         }
 
         private CraterTable createOptimizedArrayTable(Object storage, long n, DynamicObjectLibrary tables) {
-            var table = createTable(n, tables);
-            table.setOptimizedArray(storage, n, tables);
-            return table;
+            // TODO
+            return null;
         }
     }
 

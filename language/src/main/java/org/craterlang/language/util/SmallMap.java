@@ -5,6 +5,7 @@ import org.graalvm.collections.EconomicMap;
 
 import java.lang.invoke.VarHandle;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 import static java.lang.System.identityHashCode;
 import static java.util.Objects.requireNonNull;
@@ -60,6 +61,39 @@ public final class SmallMap<K, V> {
         }
         else {
             return ((EconomicMap<K, V>) storage).put(key, value);
+        }
+    }
+
+    public V getOrCompute(K key, Function<? super K, ? extends V> computeValue) {
+        var storage = storageHandle.get(owner);
+        if (storage == null) {
+            var value = computeValue.apply(key);
+            storageHandle.set(owner, new SingleEntry(key, value));
+            return value;
+        }
+        else if (storage instanceof SingleEntry entry) {
+            if (key.equals(entry.key)) {
+                return (V) entry.value;
+            }
+            else {
+                var value = computeValue.apply(key);
+                EconomicMap<K, V> map = EconomicMap.create();
+                map.put((K) entry.key, (V) entry.value);
+                map.put(key, value);
+                return value;
+            }
+        }
+        else {
+            var map = (EconomicMap<K, V>) storage;
+            var existingValue = map.get(key);
+            if (existingValue == null) {
+                var value = computeValue.apply(key);
+                map.put(key, value);
+                return value;
+            }
+            else {
+                return existingValue;
+            }
         }
     }
 
